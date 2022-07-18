@@ -66,7 +66,7 @@ def find_clockwise_nearest(vector_a,vector_b_arr,id_list):
     """
     ang = np.arctan2(vector_a[0]*vector_b_arr[:,1]-vector_a[1]*vector_b_arr[:,0],vector_a[0]*vector_b_arr[:,0]+vector_a[1]*vector_b_arr[:,1]) #正切的加减.
     # id_list = vector_b_arr[:,2]
-    positive_id = np.where(ang > 1e-12)[0] # when ang == 0, means vector_a find it self.  using 1e-12 to aviod float precision error,
+    positive_id = np.where(ang > 1e-3)[0] # when ang == 0, means vector_a find it self.  using 1e-12 to aviod float precision error,
     if positive_id.shape[0] > 0 :
         # e.g angle [-20,20,30] we wanna get 20 degree, rather than -20 degree,
         # because -20 degree means the vector has neg direction compare to vector_a
@@ -95,7 +95,7 @@ def find_inters(pv,rv,qv,sv):
         return intersections,line_has_inters
     else:
         return None,None
-@timer
+# @timer
 def tracing_outline_robust(verts,faces):
     """
     this is the version not require tree building, it calculates all intersections from all edges
@@ -130,6 +130,7 @@ def tracing_outline_robust(verts,faces):
         vector_a = pre_pt - center_pt
         vector_b_arr = verts[connect_id] - center_pt
         next_id = find_clockwise_nearest(vector_a,vector_b_arr,connect_id)
+
         if next_id == start_id:
             break
         pre_pt = center_pt
@@ -150,15 +151,37 @@ def tracing_outline_robust(verts,faces):
         out_points.append(center_pt)
 
     return np.asarray(out_points),out_id
-import time
 
-# mesh_path = '/home/SENSETIME/xulixin2/Downloads/001713343/simple_liver.stl'
-# mesh = trimesh.load_mesh( mesh_path, process=True)
-# v,f = mesh.vertices,mesh.faces
-# random_euler_angel = np.random.uniform(0,np.pi,(3,1))
+def getCellIds(polydata):
+    cells = polydata.GetPolys()
+    ids = []
+    idList = vtk.vtkIdList()
+    cells.InitTraversal()
+    while cells.GetNextCell(idList):
+        for i in range(0, idList.GetNumberOfIds()):
+            pId = idList.GetId(i)
+            ids.append(pId)
+    ids = np.array(ids)
+    return ids
+#
+# import time
+#
+# import vtkmodules.all as vtk
+# import vtkmodules.util.numpy_support
+# mesh_path = '/data/test_test.vtk'
+# mesh = vtk.vtkPolyDataReader()
+# mesh.SetFileName(mesh_path)
+# mesh.Update()
+# data = mesh.GetOutput()
+#
+#
+# v,f = vtkmodules.util.numpy_support.vtk_to_numpy(data.GetPoints().GetData()),getCellIds(data).reshape(-1,3)
+#
+# random_euler_angel = np.random.uniform(0,0,(3,1))
 # rot = R.from_euler('xyz',random_euler_angel.flatten())
 # rot_matrix = rot.as_matrix()
 # v = v @ rot_matrix.T
+#
 # v_2d = v[:,:2]
 # # can add transformation here,not that hard just a matrix of projection.
 # points,ids = tracing_outline_robust(v_2d,f)

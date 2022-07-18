@@ -1,11 +1,13 @@
 import numpy as np
+from vtk.util.numpy_support import vtk_to_numpy,numpy_to_vtk
 from vtk.util import numpy_support
 import os
-import vtkmodules.all as vtk
+# import vtkmodules.all as vtk
 import yaml
 import json
 from datetime import datetime
 from outline_test import *
+import time
 
 import cv2
 
@@ -75,11 +77,11 @@ class Camera_VTK:
         self.data_path = data_root_path
         # self.init_vtk()
         self.read_tet = False
-        if self.mesh_path.endswith('.vtk'):
+        if self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('.vtu'):
             self.read_tet = True
         self.init_stl(self.read_tet)
 
-    def snapshot(self, type='target'):
+    def  snapshot(self, type='target'):
         cam = self.renderer.GetActiveCamera()
         pixel_points, scene_points = self.iren.GetInteractorStyle().get_points()
 
@@ -137,7 +139,6 @@ class Camera_VTK:
             parameter_dict['extrinsics'] = extrinsics.tolist()
             parameter_dict['intrinsics'] = K.tolist()
         else:
-
             parameter_dict["cam_position_for_openGL"] = cam.GetPosition()
             parameter_dict["look_at_position_for_openGL"] = cam.GetFocalPoint()
             parameter_dict["view_up_for_openGL"] = cam.GetViewUp()
@@ -172,10 +173,13 @@ class Camera_VTK:
 
     def init_stl(self, read_tet=False):
         if read_tet:
-            self.mesh_reader = vtk.vtkUnstructuredGridReader()
+            if self.mesh_path.endswith('.vtk'):
+                self.mesh_reader = vtk.vtkUnstructuredGridReader()
+            elif self.mesh_path.endswith('.vtu'):
+                self.mesh_reader = vtk.vtkXMLUnstructuredGridReader()
             self.mesh_reader.SetFileName(self.mesh_path)
             self.mesh_reader.Update()
-            assert self.mesh_path.endswith('.vtk'), "Tet filename must be endswith \'vtk\'."
+            assert (self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('vtu')), "Tet filename must be endswith \'vtk\'."
             self.filter = vtk.vtkDataSetSurfaceFilter()
             self.filter.SetInputData(self.mesh_reader.GetOutput())
             self.filter.Update()
@@ -226,6 +230,7 @@ class Camera_VTK:
         # plt.show()
 
         self.stlMapper = vtk.vtkPolyDataMapper()
+
         self.stlMapper.SetInputData(self.polydata)
         # self.stlMapper.SetInputConnection(self.stl_reader.GetOutputPort())
 
@@ -495,3 +500,5 @@ class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
         self.contour_index.append(seg_index)
         render.AddActor(lineActor)
         render.Render()
+
+
