@@ -2,6 +2,8 @@ import math, cv2
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 import tps
+import json
+
 
 class Point:
     def __init__(self, x, y):
@@ -36,7 +38,7 @@ class Shape:
         for point in shape:
             self.shape_pts.append(Point(point[0], point[1]))
         self.shape_contexts = self.get_shape_contexts()
-
+        # self.log_polar_points = [point.cart2logpolar() for point in self.shape_pts]
     def get_shape_contexts(self, angular_bins=12, radious_bins=None):
         '''
             angular_bins -> number of bins for angle.
@@ -84,10 +86,10 @@ class Shape:
                               if added to Q -> m)
         '''
         def normalize_histogram(hist, total):
-
+            new_hist = hist.copy()
             for i in range(hist.shape[0]):
-                hist[i] /= float(total)
-            return hist
+                new_hist[i] /= float(total)
+            return new_hist
 
         def shape_context_cost(nh1, nh2):
             '''
@@ -148,7 +150,7 @@ class Shape:
                       from Pshape matched to
                       point i from Qshape.
         '''
-        cost_matrix, flag = self.get_cost_matrix(Q)
+        cost_matrix, flag = self.get_cost_matrix(Q,beta=0.9)
         perm = linear_sum_assignment(cost_matrix)[1]
         Pshape = np.array(self.shape)
         Qshape = np.array(Q.shape)
@@ -297,3 +299,8 @@ class utils:
         for i in range(x.shape[0]):
             shape.append([x[i], y[i]])
         return shape
+
+
+if __name__ == '__main__':
+    with open('/home/SENSETIME/xulixin2/registration.json') as f:
+        data = json.load(f)
