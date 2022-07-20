@@ -118,7 +118,7 @@ def convert_coordinates_from_cv_to_gl(points: np.array):
 def apply_affine_on_points(points):
 
     # apply random rotation on points
-    theta = np.pi/2
+    theta = np.pi
     rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
                                 [np.sin(theta), np.cos(theta)]])
     points = np.dot(rotation_matrix, points)

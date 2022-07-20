@@ -38,25 +38,50 @@ class Shape:
         self.shape_pts = []
         for point in shape:
             self.shape_pts.append(Point(point[0], point[1]))
+        self.distance_map = np.zeros((len(self.shape_pts), len(self.shape_pts)))
         self.shape_contexts = self.get_shape_contexts()
         # self.log_polar_points = [point.cart2logpolar() for point in self.shape_pts]
 
-    def get_shape_contexts(self, angular_bins=12, radious_bins=None):
+    def log_space_generation(self, d1, d2, n):
+        log_space = [(2 ** (d1 + k * (d2 - d1) / (n - 1))) for k in range(0, n - 1)]
+        log_space.append(2 ** d2)
+        return log_space
+
+    def get_shape_contexts(self, angular_bins=12, radius_bins=6, inner_factor=None,outer_factor=None,
+                           rotation_invariance=True, scale_invariance=True):
         """
             angular_bins -> number of bins for angle.
-            radious_bins -> number of bins for radious,
-                            default is maximum radious.
+            radius_bins -> number of bins for radius,
+                            default is maximum radius.
             return -> list of shape context in image (bin array)
         """
-        # get maximum number of radious_bins
-        distance_map = np.zeros((len(self.shape_pts), len(self.shape_pts)))
-        if radious_bins is None:
+        # get maximum number of radius_bins
+        log_space = None
+
+        if not scale_invariance:
+            print('You have disabled scale invariance.')
+            print('radius_bins will be set automatically according to the shape.')
             max_dist2 = 0
             for i in range(len(self.shape_pts)):
                 for j in range(len(self.shape_pts)):
                     max_dist2 = max(max_dist2, self.shape_pts[i].dist2(self.shape_pts[j]))
-            radious_bins = int(math.log(math.sqrt(max_dist2))) + 1
-        shape_contexts = [np.zeros((radious_bins, angular_bins), dtype=float) for _ in range(len(self.shape_pts))]
+            radius_bins = int(math.log(math.sqrt(max_dist2))) + 1
+        # old behavior
+        else:
+            for i in range(len(self.shape_pts)):
+                for j in range(len(self.shape_pts)):
+                    self.distance_map[i, j] = np.sqrt(self.shape_pts[i].dist2(self.shape_pts[j]))
+            average_distance = np.average(self.distance_map)
+            self.distance_map /= average_distance
+            if inner_factor is None:
+                inner_factor = self.distance_map.min() + 1e-7
+            if outer_factor is None:
+                outer_factor = self.distance_map.max()
+            log_space = self.log_space_generation(math.log2(inner_factor * average_distance),
+                                                  math.log2(outer_factor * average_distance),
+                                                  radius_bins)
+
+        shape_contexts = [np.zeros((radius_bins, angular_bins), dtype=float) for _ in range(len(self.shape_pts))]
         # compute bins
         for i in range(len(self.shape_pts)):
             for j in range(len(self.shape_pts)):
@@ -65,23 +90,28 @@ class Shape:
                 pt = Point(self.shape_pts[j].x - self.shape_pts[i].x,
                            self.shape_pts[j].y - self.shape_pts[i].y)
                 r, theta = pt.cart2logpolar()
-                theta -= math.atan2(self.shape_pts[i].y,self.shape_pts[i].x)
-                theta = (theta + 2*math.pi) % (2*math.pi)
-                # ensure rotation invariance
-                if r < 0:
-                    x = 0
+
+                if rotation_invariance:
+                    theta -= math.atan2(self.shape_pts[i].y, self.shape_pts[i].x)
+                    theta = (theta + 2 * math.pi) % (2 * math.pi)
+                    y = int(angular_bins * (theta / (math.pi + math.pi)))
+                else:
+                    if theta == math.pi:
+                        y = angular_bins - 1
+                    else:
+                        y = int(angular_bins * ((theta + math.pi) / (math.pi + math.pi)))
+
+                if scale_invariance:
+                    assert log_space is not None
+                    distance = np.exp(r)
+                    if distance == 1:
+                        distance
+                    # determine which bin the scaled_distance falls in
+                    x = np.digitize(distance, log_space)
                 else:
                     x = int(r)
-                if theta == math.pi:
-                    y = angular_bins - 1
-                else:
-
-                    y = int(angular_bins * (theta / (math.pi + math.pi)))
-                # if y==0:
-                #     print('error')
-                # print(((theta + math.pi) / (math.pi + math.pi)))
                 shape_contexts[i][x][y] += 1
-        return [shape_context.reshape((radious_bins * angular_bins)) for shape_context in shape_contexts]
+        return [shape_context.reshape((radius_bins * angular_bins)) for shape_context in shape_contexts]
 
     def get_cost_matrix(self, Q, beta=.1, robust=False, dummy_cost=1):
         '''
