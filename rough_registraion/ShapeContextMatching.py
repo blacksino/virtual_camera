@@ -66,6 +66,8 @@ class Shape:
                            self.shape_pts[j].y - self.shape_pts[i].y)
                 r, theta = pt.cart2logpolar()
                 theta -= math.atan2(self.shape_pts[i].y,self.shape_pts[i].x)
+                theta = (theta + 2*math.pi) % (2*math.pi)
+                # ensure rotation invariance
                 if r < 0:
                     x = 0
                 else:
@@ -73,7 +75,11 @@ class Shape:
                 if theta == math.pi:
                     y = angular_bins - 1
                 else:
-                    y = int(angular_bins * ((theta + math.pi) / (math.pi + math.pi)))
+
+                    y = int(angular_bins * (theta / (math.pi + math.pi)))
+                # if y==0:
+                #     print('error')
+                # print(((theta + math.pi) / (math.pi + math.pi)))
                 shape_contexts[i][x][y] += 1
         return [shape_context.reshape((radious_bins * angular_bins)) for shape_context in shape_contexts]
 

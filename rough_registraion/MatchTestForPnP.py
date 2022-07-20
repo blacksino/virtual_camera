@@ -62,6 +62,10 @@ def plot_points_in_log_polar(shape_source, shape_target, style='cartesian', resu
                                       coordsA="data", coordsB="data",
                                       axesA=ax[0], axesB=ax[1], color="r")
                 ax[1].add_artist(con)
+        # set equal scale
+        ax[0].set_aspect('equal')
+        ax[1].set_aspect('equal')
+
         plt.show()
         plt.cla()
         plt.clf()
@@ -105,9 +109,6 @@ def project_points(points, extrinsics, K):
 
 
 def convert_coordinates_from_cv_to_gl(points: np.array):
-    if type(points) != np.array:
-        points = np.array(points)
-    points = np.array(points)
     # exchange x and y
     points = points[::-1, :]
     points[0, :] = w - points[0, :]
@@ -117,7 +118,7 @@ def convert_coordinates_from_cv_to_gl(points: np.array):
 def apply_affine_on_points(points):
 
     # apply random rotation on points
-    theta = np.pi/5
+    theta = np.pi/2
     rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
                                 [np.sin(theta), np.cos(theta)]])
     points = np.dot(rotation_matrix, points)
@@ -144,19 +145,17 @@ if __name__ == '__main__':
     scene_points = np.array(scene_points)
 
     points_2d = project_points(scene_points, extrinsics, K)
-    #sort the points by x
     points_2d = points_2d[np.argsort(points_2d[:, 0])]
 
-    # target_points_2d = apply_affine_on_points(labeled_2d_points)
-    # target_points_2d = convert_coordinates_from_cv_to_gl(target_points_2d).T
-    # target_points_2d = target_points_2d[np.argsort(target_points_2d[:, 0])]
+    labeled_2d_points = np.array(labeled_2d_points).T
+    target_points_2d = convert_coordinates_from_cv_to_gl(labeled_2d_points.T).T
+    target_points_2d = target_points_2d[np.argsort(target_points_2d[:, 0])]
 
-
-    # shape_target = Shape(shape=target_points_2d.tolist())
+    target_points_2d_rotated = apply_affine_on_points(target_points_2d.T).T
     points_2d_rotated = apply_affine_on_points(points_2d.T).T
 
-
-    shape_target = Shape(shape=points_2d_rotated.tolist())
+    # shape_target = Shape(shape=points_2d_rotated.tolist())
+    shape_target = Shape(shape=target_points_2d_rotated.tolist())
     shape_source = Shape(shape=points_2d.tolist())
 
     # test code for rotation invariance
