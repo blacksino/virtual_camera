@@ -6,6 +6,7 @@ import solveEPnP
 import json
 from ShapeContextMatching import *
 from matplotlib.patches import ConnectionPatch
+from torchvision.transforms import RandomAffine
 
 fx = 500.0
 fy = 500.0
@@ -109,8 +110,25 @@ def convert_coordinates_from_cv_to_gl(points: np.array):
     points = np.array(points)
     # exchange x and y
     points = points[::-1, :]
-    # points[0, :] = w - points[0, :]
+    points[0, :] = w - points[0, :]
     return points
+
+
+def apply_affine_on_points(points):
+
+    # apply random rotation on points
+    theta = np.pi/5
+    rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                [np.sin(theta), np.cos(theta)]])
+    points = np.dot(rotation_matrix, points)
+    # apply random translation on points
+    # points[:, 0] += np.random.uniform(-500, 500)
+    # points[:, 1] += np.random.uniform(-500, 500)
+    # apply random shear on points
+    # points[:, 0] += np.random.uniform(-0.3, 0.3) * points[:, 1]
+    return points
+
+
 
 
 if __name__ == '__main__':
@@ -129,16 +147,22 @@ if __name__ == '__main__':
     #sort the points by x
     points_2d = points_2d[np.argsort(points_2d[:, 0])]
 
-    # polynomial curve fitting
-
-    target_points_2d = convert_coordinates_from_cv_to_gl(labeled_2d_points).T
+    # target_points_2d = apply_affine_on_points(labeled_2d_points)
+    # target_points_2d = convert_coordinates_from_cv_to_gl(target_points_2d).T
     # target_points_2d = target_points_2d[np.argsort(target_points_2d[:, 0])]
 
 
-    shape_target = Shape(shape=target_points_2d.tolist())
+    # shape_target = Shape(shape=target_points_2d.tolist())
+    points_2d_rotated = apply_affine_on_points(points_2d.T).T
+
+
+    shape_target = Shape(shape=points_2d_rotated.tolist())
     shape_source = Shape(shape=points_2d.tolist())
 
-    plot_points_in_log_polar(shape_source, shape_target, style='polar')
+    # test code for rotation invariance
+
+
+    # plot_points_in_log_polar(shape_source, shape_target, style='polar')
     shape_context_source_test = shape_source.shape_contexts[0].reshape(6, -1)
     shape_context_target_test = shape_target.shape_contexts[0].reshape(6, -1)
 

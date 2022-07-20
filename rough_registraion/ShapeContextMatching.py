@@ -15,11 +15,12 @@ class Point:
             return (rho, theta)
         '''
         rho = math.sqrt(self.x * self.x + self.y * self.y)
-        theta = math.atan2(self.x, self.y)
-        return (math.log(rho), theta)
+        theta = math.atan2(self.y, self.x)
+        return math.log(rho), theta
 
     def dist2(self, other):
-        return (self.x - other.x)**2 + (self.y - other.y)**2
+        return (self.x - other.x) ** 2 + (self.y - other.y) ** 2
+
 
 class Shape:
     def __init__(self, shape=None, img=None):
@@ -39,14 +40,16 @@ class Shape:
             self.shape_pts.append(Point(point[0], point[1]))
         self.shape_contexts = self.get_shape_contexts()
         # self.log_polar_points = [point.cart2logpolar() for point in self.shape_pts]
+
     def get_shape_contexts(self, angular_bins=12, radious_bins=None):
-        '''
+        """
             angular_bins -> number of bins for angle.
             radious_bins -> number of bins for radious,
                             default is maximum radious.
             return -> list of shape context in image (bin array)
-        '''
+        """
         # get maximum number of radious_bins
+        distance_map = np.zeros((len(self.shape_pts), len(self.shape_pts)))
         if radious_bins is None:
             max_dist2 = 0
             for i in range(len(self.shape_pts)):
@@ -62,6 +65,7 @@ class Shape:
                 pt = Point(self.shape_pts[j].x - self.shape_pts[i].x,
                            self.shape_pts[j].y - self.shape_pts[i].y)
                 r, theta = pt.cart2logpolar()
+                theta -= math.atan2(self.shape_pts[i].y,self.shape_pts[i].x)
                 if r < 0:
                     x = 0
                 else:
@@ -85,6 +89,7 @@ class Shape:
                               if added to P -> -n
                               if added to Q -> m)
         '''
+
         def normalize_histogram(hist, total):
             new_hist = hist.copy()
             for i in range(hist.shape[0]):
@@ -104,7 +109,7 @@ class Shape:
             for k in range(nh1.shape[0]):
                 if nh1[k] + nh2[k] == 0:
                     continue
-                cost += (nh1[k] - nh2[k])**2 / (nh1[k] + nh2[k])
+                cost += (nh1[k] - nh2[k]) ** 2 / (nh1[k] + nh2[k])
             return cost / 2.0
 
         def tangent_angle_dissimilarity(p1, p2):
@@ -132,15 +137,15 @@ class Shape:
                     C[i, j] = dummy_cost
             else:
                 p = self.shape_pts[i]
-                hist_p = normalize_histogram(self.shape_contexts[i], n-1)
+                hist_p = normalize_histogram(self.shape_contexts[i], n - 1)
                 for j in range(mx):
                     if m <= j:
                         C[i, j] = dummy_cost
                     else:
                         q = Q.shape_pts[j]
-                        hist_q = normalize_histogram(Q.shape_contexts[j], m-1)
-                        C[i, j] = (1-beta) * shape_context_cost(hist_p, hist_q)\
-                            + beta * tangent_angle_dissimilarity(p, q)
+                        hist_q = normalize_histogram(Q.shape_contexts[j], m - 1)
+                        C[i, j] = (1 - beta) * shape_context_cost(hist_p, hist_q) \
+                                  + beta * tangent_angle_dissimilarity(p, q)
         return C, flag
 
     def matching(self, Q):
@@ -150,7 +155,7 @@ class Shape:
                       from Pshape matched to
                       point i from Qshape.
         '''
-        cost_matrix, flag = self.get_cost_matrix(Q,beta=0.9)
+        cost_matrix, flag = self.get_cost_matrix(Q, beta=0)
         perm = linear_sum_assignment(cost_matrix)[1]
         Pshape = np.array(self.shape)
         Qshape = np.array(Q.shape)
@@ -209,6 +214,7 @@ class Shape:
             window_size -> size of guassian window.
             return -> appearance cost.
         '''
+
         def guassian_window(std, window_size):
             '''
                 std -> scalar [standard deviation].
@@ -216,22 +222,23 @@ class Shape:
                 return -> guassian window.
             '''
             window = np.zeros((window_size, window_size))
-            for x in range(-(window_size//2), window_size//2 + 1):
-                for y in range(-(window_size//2), window_size//2 + 1):
-                    window[x][y] = math.exp(-(x*x + y*y) / (2 * std * std)) / (2 * math.pi * std * std)
+            for x in range(-(window_size // 2), window_size // 2 + 1):
+                for y in range(-(window_size // 2), window_size // 2 + 1):
+                    window[x][y] = math.exp(-(x * x + y * y) / (2 * std * std)) / (2 * math.pi * std * std)
             return window
+
         ret = 0
         G = guassian_window(std, window_size)
         for i in range(source.shape[0]):
-            for x in range(-(window_size//2), window_size//2 + 1):
-                for y in range(-(window_size//2), window_size//2 + 1):
-                    px = min(int(x + source[i, 0]), img_p.shape[0]-1)
-                    py = min(int(y + source[i, 1]), img_p.shape[1]-1)
+            for x in range(-(window_size // 2), window_size // 2 + 1):
+                for y in range(-(window_size // 2), window_size // 2 + 1):
+                    px = min(int(x + source[i, 0]), img_p.shape[0] - 1)
+                    py = min(int(y + source[i, 1]), img_p.shape[1] - 1)
                     Ip = int(img_p[px, py])
-                    qx = min(int(x + target_transformed[i, 0]), img_q.shape[0]-1)
-                    qy = min(int(y + target_transformed[i, 1]), img_q.shape[1]-1)
+                    qx = min(int(x + target_transformed[i, 0]), img_q.shape[0] - 1)
+                    qy = min(int(y + target_transformed[i, 1]), img_q.shape[1] - 1)
                     Iq = int(img_q[qx, qy])
-                    ret += G[x + window_size//2, y + window_size//2] * (Ip - Iq)**2
+                    ret += G[x + window_size // 2, y + window_size // 2] * (Ip - Iq) ** 2
         return ret / source.shape[0]
 
     def _distance(self, Q, w1, w2, w3, iterations=3):
@@ -244,6 +251,7 @@ class Shape:
                          estimation.
             return -> distance between two shapes.
         '''
+
         def transform_shape(Q, T):
             '''
                 Q -> instance of Shape.
@@ -279,10 +287,12 @@ class Shape:
         SC = self.shape_context_distance(Q, T)
         return w1 * AC + w2 * SC + w3 * BE
 
+
 def distance(source_img, target_img, w1=1.6, w2=1, w3=.3):
     P = Shape(img=source_img)
     Q = Shape(img=target_img)
     return P._distance(Q, w1, w2, w3)
+
 
 class utils:
     def canny_edge_shape(img, max_samples=100, t1=100, t2=200):
