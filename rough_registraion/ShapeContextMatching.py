@@ -76,7 +76,7 @@ class Shape:
             if inner_factor is None:
                 inner_factor = self.distance_map.min() + 1e-7
             if outer_factor is None:
-                outer_factor = self.distance_map.max()
+                outer_factor = self.distance_map.max()+1e-2
             log_space = self.log_space_generation(math.log2(inner_factor * average_distance),
                                                   math.log2(outer_factor * average_distance),
                                                   radius_bins)
@@ -104,16 +104,14 @@ class Shape:
                 if scale_invariance:
                     assert log_space is not None
                     distance = np.exp(r)
-                    if distance == 1:
-                        distance
                     # determine which bin the scaled_distance falls in
-                    x = np.digitize(distance, log_space)
+                    x = np.digitize(distance, log_space, right=True)
                 else:
                     x = int(r)
                 shape_contexts[i][x][y] += 1
         return [shape_context.reshape((radius_bins * angular_bins)) for shape_context in shape_contexts]
 
-    def get_cost_matrix(self, Q, beta=.1, robust=False, dummy_cost=1):
+    def get_cost_matrix(self, Q, beta=0, robust=False, dummy_cost=1):
         '''
             Q -> instance of Shape
             beta -> coefficient of tangent_angle_dissimilarity,
@@ -182,9 +180,10 @@ class Shape:
                         hist_q = normalize_histogram(Q.shape_contexts[j], m - 1)
                         C[i, j] = (1 - beta) * shape_context_cost(hist_p, hist_q) \
                                   + beta * tangent_angle_dissimilarity(p, q)
+
         return C, flag
 
-    def matching(self, Q):
+    def matching(self, Q,with_perm=False):
         '''
             return -> two 2 x min(n, m) array.
                       (Pshape, Qshape) point i
@@ -206,6 +205,8 @@ class Shape:
             new_perm = perm[mask]
             Pshape = Pshape[mask]
             Qshape = Qshape[new_perm]
+        if with_perm:
+            return (Pshape, Qshape), new_perm
         return Pshape, Qshape
 
     def estimate_transformation(source, target):

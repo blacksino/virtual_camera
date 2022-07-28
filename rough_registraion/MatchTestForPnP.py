@@ -7,6 +7,9 @@ import json
 from ShapeContextMatching import *
 from matplotlib.patches import ConnectionPatch
 from torchvision.transforms import RandomAffine
+import numpy as np
+from sklearn.neighbors import NearestNeighbors
+from sklearn.neighbors import KDTree
 
 fx = 500.0
 fy = 500.0
@@ -51,9 +54,11 @@ def plot_points_in_log_polar(shape_source, shape_target, style='cartesian', resu
 
     if style == 'cartesian':
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-        ax[0].scatter(source_points[:, 0], source_points[:, 1])
+        # set dpi
+        fig.set_dpi(500)
+        ax[0].scatter(source_points[:, 0], source_points[:, 1], s=0.2)
         ax[0].set_title('source points')
-        ax[1].scatter(target_points[:, 0], target_points[:, 1])
+        ax[1].scatter(target_points[:, 0], target_points[:, 1], s=0.2)
         ax[1].set_title('target points')
         if result is not None:
             # add ConnectionPatch to connect the two points
@@ -69,7 +74,7 @@ def plot_points_in_log_polar(shape_source, shape_target, style='cartesian', resu
         plt.show()
         plt.cla()
         plt.clf()
-    else:
+    elif style == 'polar':
         fig, ax = plt.subplots(1, 2, subplot_kw={'polar': True}, figsize=(10, 5))
         ax = ax.flatten()
         scatter_logpolar_mpl(ax[0], a[:, 0], a[:, 1])
@@ -77,10 +82,22 @@ def plot_points_in_log_polar(shape_source, shape_target, style='cartesian', resu
         plt.show()
         plt.cla()
         plt.clf()
+    else:
+        plt.figure(figsize=(10, 10), dpi=500)
+        plt.scatter(source_points[:, 0], source_points[:, 1], s=1)
+        plt.scatter(target_points[:, 0], target_points[:, 1], s=1)
+        if result is not None:
+            for i in range(result[0].shape[0]):
+                plt.plot([result[1][i][0], result[0][i][0]], [result[1][i][1], result[0][i][1]], 'r')
+        plt.show()
+        plt.cla()
+        plt.clf()
 
 
 def extract_red_curve(img_path):
     image = cv2.imread(img_path)
+    # resize image
+    # image = cv2.resize(image, (2*w, 2*h))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     key_points_mask = np.zeros(image.shape[:-1])
     key_points_mask[(image[:, :, 0] > 150) & (image[:, :, 1] < 100) & (image[:, :, -1] < 100)] = 1
@@ -90,12 +107,11 @@ def extract_red_curve(img_path):
 def load_json(json_path):
     with open(json_path) as f:
         data = json.load(f)
-    return data['extrinsics'], data['scene_points']
+    return np.array(data['extrinsics']), np.array(data['scene_points'])
 
 
 def project_points(points, extrinsics, K):
-    extrinsics = np.linalg.inv(
-        extrinsics)  # extrinsics must be inverted, because the points are in the camera coordinate system
+    extrinsics = np.linalg.inv(extrinsics)  # extrinsics must be inverted, because the points are in the camera coordinate system
     # convert points to homogeneous coordinates
     points = np.hstack((points, np.ones((points.shape[0], 1))))
     # transform points to camera coordinates
@@ -109,57 +125,73 @@ def project_points(points, extrinsics, K):
 
 
 def convert_coordinates_from_cv_to_gl(points: np.array):
+    assert points.ndim==2
+    flag = False
+    if points.shape[1] == 2:
+       points = points.T
+       flag = True
     # exchange x and y
     points = points[::-1, :]
     points[0, :] = w - points[0, :]
+    if flag:
+        points = points.T
     return points
 
 
-def apply_affine_on_points(points):
-
+def apply_affine_on_points(points,theta = 0):
     # apply random rotation on points
-    theta = np.pi
-    rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
-                                [np.sin(theta), np.cos(theta)]])
-    points = np.dot(rotation_matrix, points)
-    # apply random translation on points
-    # points[:, 0] += np.random.uniform(-500, 500)
-    # points[:, 1] += np.random.uniform(-500, 500)
-    # apply random shear on points
-    # points[:, 0] += np.random.uniform(-0.3, 0.3) * points[:, 1]
-    return points
-
-
-
+    assert points.ndim == 2
+    if points.shape[1] == 2:
+        points = points.T
+        rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                    [np.sin(theta), np.cos(theta)]])
+        points = np.dot(rotation_matrix, points)
+        return points.T
+    else:
+        rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                    [np.sin(theta), np.cos(theta)]])
+        points = np.dot(rotation_matrix, points)
+        return points
 
 if __name__ == '__main__':
-    mask = extract_red_curve("/home/SENSETIME/xulixin2/label.png")
-    mask = morphology.skeletonize(mask)
-    mask = mask.astype(np.uint8) * 255
-    labeled_2d_points = np.where(mask == 255)
-    # plt.imshow(mask)
-    # plt.show()
-
+    # mask = extract_red_curve("/home/SENSETIME/xulixin2/label.png")
+    # mask = morphology.skeletonize(mask)
+    # mask = mask.astype(np.uint8) * 255
+    # labeled_2d_points = np.where(mask == 255)
+    # # plt.imshow(mask)
+    # # plt.show()
+    #
     extrinsics, scene_points = load_json("/home/SENSETIME/xulixin2/registration.json")
-    extrinsics = np.array(extrinsics)
-    scene_points = np.array(scene_points)
+    # extrinsics = np.array(extrinsics)
+    # scene_points = np.array(scene_points)
+    #
+    # points_2d = project_points(scene_points, extrinsics, K)
+    # points_2d = points_2d[np.argsort(points_2d[:, 0])]
 
-    points_2d = project_points(scene_points, extrinsics, K)
-    points_2d = points_2d[np.argsort(points_2d[:, 0])]
+    # read points from txt
+    labeled_2d_points = np.loadtxt("/data/image_points.txt")
+    points_2d = np.loadtxt("/data/projected_points.txt")
 
-    labeled_2d_points = np.array(labeled_2d_points).T
-    target_points_2d = convert_coordinates_from_cv_to_gl(labeled_2d_points.T).T
-    target_points_2d = target_points_2d[np.argsort(target_points_2d[:, 0])]
+    # labeled_2d_points = np.array(labeled_2d_points).T
+    # target_points_2d = convert_coordinates_from_cv_to_gl(labeled_2d_points.T).T
+    target_points_2d = labeled_2d_points
+    # target_points_2d = target_points_2d[np.argsort(target_points_2d[:, 0])]
 
-    target_points_2d_rotated = apply_affine_on_points(target_points_2d.T).T
-    points_2d_rotated = apply_affine_on_points(points_2d.T).T
+    target_points_2d_rotated = apply_affine_on_points(target_points_2d)
+    points_2d_rotated = apply_affine_on_points(points_2d)
+
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    ax[0].scatter(target_points_2d_rotated[:, 0], target_points_2d_rotated[:, 1])
+    ax[0].set_title('target points')
+    ax[1].scatter(points_2d_rotated[:, 0], points_2d_rotated[:, 1])
+    ax[1].set_title('projected points')
+    plt.show()
 
     # shape_target = Shape(shape=points_2d_rotated.tolist())
     shape_target = Shape(shape=target_points_2d_rotated.tolist())
     shape_source = Shape(shape=points_2d.tolist())
 
     # test code for rotation invariance
-
 
     # plot_points_in_log_polar(shape_source, shape_target, style='polar')
     shape_context_source_test = shape_source.shape_contexts[0].reshape(6, -1)
@@ -170,10 +202,69 @@ if __name__ == '__main__':
     ax[1].imshow(shape_context_target_test, cmap='gray')
     plt.show()
 
-    result = shape_source.matching(shape_target)
-    result = np.array(result)
+    # result = shape_source.matching(shape_target)
+    # result = np.array(result)
+    result_1 = shape_target.matching(shape_source)
+    result_1 = np.array(result_1)
+
+    # compare to the result of using nearest neighbor
+
+    tree = KDTree(target_points_2d_rotated)
+    dist, ind = tree.query(points_2d, k=1)
+
+    nn_result = []
+    nn_result.append(np.array([points_2d[i] for i in range(len(points_2d))]))
+    nn_result.append(np.array([target_points_2d_rotated[each_ind] for each_ind in ind]).reshape(-1, 2))
+    nn_result = np.array(nn_result)
+    # convert list to numpy array
+
     # result[0] = result[0][::-1]
     # plt.scatter()
 
-    plot_points_in_log_polar(shape_source, shape_target, style='cartesian', result=result)
-    # plot_points_in_log_polar(shape_source,shape_target,style='polar')
+    plot_points_in_log_polar(shape_source, shape_target, style='cartesian', result=result_1)
+    # plot_points_in_log_polar(shape_source, shape_target, style='cartesian', result=nn_result)
+    # # plot_points_in_log_polar(shape_source,shape_target,style='polar')
+    # img_1 = cv2.imread("/home/SENSETIME/xulixin2/sc_1.png")
+    # img_2 = cv2.imread("/home/SENSETIME/xulixin2/sc_2.png")
+    # img_1 = cv2.cvtColor(img_1, cv2.COLOR_BGR2RGB)
+    # img_2 = cv2.cvtColor(img_2, cv2.COLOR_BGR2RGB)
+    # # plot 2 image in one figure
+    # fig, ax = plt.subplots(1, 2, figsize=(12, 8),dpi=500)
+    # ax[0].imshow(img_1)
+    # ax[1].imshow(img_2)
+    # plt.show()
+    #
+    # #
+    # beta_1 = extract_red_curve("/home/SENSETIME/xulixin2/sc_1.png")
+    # beta_2 = extract_red_curve("/home/SENSETIME/xulixin2/sc_2.png")
+    # beta_1 = morphology.skeletonize(beta_1)
+    # beta_2 = morphology.skeletonize(beta_2)
+    # beta_1 = beta_1.astype(np.uint8) * 255
+    # beta_2 = beta_2.astype(np.uint8) * 255
+    # labeled_2d_points_1 = np.where(beta_1 == 255)
+    # labeled_2d_points_2 = np.where(beta_2 == 255)
+    # labeled_2d_points_1 = np.array(labeled_2d_points_1).T
+    # labeled_2d_points_2 = np.array(labeled_2d_points_2).T
+    # labeled_2d_points_1 = convert_coordinates_from_cv_to_gl(labeled_2d_points_1.T).T
+    # labeled_2d_points_2 = convert_coordinates_from_cv_to_gl(labeled_2d_points_2.T).T
+    # labeled_2d_points_1 = labeled_2d_points_1[np.argsort(labeled_2d_points_1[:, 0])]
+    # labeled_2d_points_2 = labeled_2d_points_2[np.argsort(labeled_2d_points_2[:, 0])]
+    # shape_target_1 = Shape(shape=labeled_2d_points_1.tolist())
+    # shape_target_2 = Shape(shape=labeled_2d_points_2.tolist())
+    # shape_context_1 = shape_target_1.shape_contexts[0].reshape(6, -1)
+    # shape_context_2 = shape_target_2.shape_contexts[0].reshape(6, -1)
+    # fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    # ax[0].imshow(shape_context_1, cmap='gray')
+    # ax[1].imshow(shape_context_2, cmap='gray')
+    # plt.show()
+    # result_1 = shape_target_1.matching(shape_target_2)
+    # result_1 = np.array(result_1)
+    # plot_points_in_log_polar(shape_target_1, shape_target_2, style='cartesian', result=result_1)
+    #
+    # kd_tree_1 = KDTree(labeled_2d_points_1)
+    # dist,ind = kd_tree_1.query(labeled_2d_points_2,k=1)
+    # nn_result_1 = []
+    # nn_result_1.append(np.array([labeled_2d_points_1[each_ind] for each_ind in ind]).reshape(-1, 2))
+    # nn_result_1.append(np.array([labeled_2d_points_2[i] for i in range(len(labeled_2d_points_2))]))
+    # nn_result_1 = np.array(nn_result_1)
+    # plot_points_in_log_polar(shape_target_1, shape_target_2, style='cartesian', result=nn_result_1)

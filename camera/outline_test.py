@@ -3,6 +3,7 @@ import trimesh # for reading mesh only
 import pdb
 import vtk
 from scipy.spatial.transform import Rotation as R
+import cv2
 
 import numpy as np
 NORM = np.linalg.norm
