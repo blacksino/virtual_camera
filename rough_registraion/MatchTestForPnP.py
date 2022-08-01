@@ -32,13 +32,16 @@ def scatter_logpolar_mpl(ax, theta, r):
     ax.set_title('log-polar matplotlib')
 
 
-def plot_points_in_log_polar(shape_source, shape_target, style='cartesian', result=None):
-    source_points = [[each_point.x, each_point.y] for each_point in shape_source.shape_pts]
-    target_points = [[each_point.x, each_point.y] for each_point in shape_target.shape_pts]
+def plot_points_in_log_polar(shape_source, shape_target, style='cartesian', result=None,use_shape=False):
+    if use_shape:
+        source_points = [[each_point.x, each_point.y] for each_point in shape_source.shape_pts]
+        target_points = [[each_point.x, each_point.y] for each_point in shape_target.shape_pts]
 
-    source_points = np.array(source_points)
-    target_points = np.array(target_points)
-
+        source_points = np.array(source_points)
+        target_points = np.array(target_points)
+    else:
+        source_points = shape_source
+        target_points = shape_target
     if style == 'polar':
         center_source = np.mean(source_points, axis=0)
         center_target = np.mean(target_points, axis=0)
@@ -56,9 +59,9 @@ def plot_points_in_log_polar(shape_source, shape_target, style='cartesian', resu
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
         # set dpi
         fig.set_dpi(500)
-        ax[0].scatter(source_points[:, 0], source_points[:, 1], s=0.2)
+        ax[0].scatter(source_points[:, 0], source_points[:, 1], s=1)
         ax[0].set_title('source points')
-        ax[1].scatter(target_points[:, 0], target_points[:, 1], s=0.2)
+        ax[1].scatter(target_points[:, 0], target_points[:, 1], s=1)
         ax[1].set_title('target points')
         if result is not None:
             # add ConnectionPatch to connect the two points

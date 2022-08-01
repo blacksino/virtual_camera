@@ -82,6 +82,17 @@ class Shape:
                                                   radius_bins)
 
         shape_contexts = [np.zeros((radius_bins, angular_bins), dtype=float) for _ in range(len(self.shape_pts))]
+        # get barycenter of shape
+        barycenter = Point(0, 0)
+        for point in self.shape_pts:
+            barycenter.x += point.x
+            barycenter.y += point.y
+        barycenter.x /= len(self.shape_pts)
+        barycenter.y /= len(self.shape_pts)
+        # move shape to barycenter
+        for i in range(len(self.shape_pts)):
+            self.shape_pts[i].x -= barycenter.x
+            self.shape_pts[i].y -= barycenter.y
         # compute bins
         for i in range(len(self.shape_pts)):
             for j in range(len(self.shape_pts)):
@@ -346,6 +357,7 @@ class utils:
         for i in range(x.shape[0]):
             shape.append([x[i], y[i]])
         return shape
+
 
 
 if __name__ == '__main__':
