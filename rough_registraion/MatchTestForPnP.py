@@ -114,7 +114,9 @@ def load_json(json_path):
 
 
 def project_points(points, extrinsics, K):
-    extrinsics = np.linalg.inv(extrinsics)  # extrinsics must be inverted, because the points are in the camera coordinate system
+    three_d_points = points
+    extrinsics = np.linalg.inv(extrinsics)# extrinsics must be inverted, because the points are in the camera coordinate system
+    extrinsics[0,:] = -extrinsics[0,:]
     # convert points to homogeneous coordinates
     points = np.hstack((points, np.ones((points.shape[0], 1))))
     # transform points to camera coordinates
@@ -123,6 +125,11 @@ def project_points(points, extrinsics, K):
     # project points to image coordinates
     points = np.dot(K, points.T).T
     # convert points to 2D
+
+    # get rvec,tvec from extrinsics
+    rvec, tvec = cv2.Rodrigues(extrinsics[:3,:3])[0], extrinsics[:3,3]
+    # project points to image coordinates
+    test, _ = cv2.projectPoints(three_d_points, rvec, tvec, K, np.zeros(5))
 
     return points[:, :2]
 

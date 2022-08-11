@@ -84,6 +84,7 @@ class Camera_VTK:
     def  snapshot(self, type='target'):
         cam = self.renderer.GetActiveCamera()
         pixel_points, scene_points = self.iren.GetInteractorStyle().get_points()
+        scene_points_normals = self.iren.GetInteractorStyle().get_points_normals()
 
         # ------ deprecated-----------
         # v_angel = cam.GetViewAngle()
@@ -139,10 +140,13 @@ class Camera_VTK:
             parameter_dict['extrinsics'] = extrinsics.tolist()
             parameter_dict['intrinsics'] = K.tolist()
         else:
+            parameter_dict['extrinsics'] = extrinsics.tolist()
+            parameter_dict['intrinsics'] = K.tolist()
             parameter_dict["cam_position_for_openGL"] = cam.GetPosition()
             parameter_dict["look_at_position_for_openGL"] = cam.GetFocalPoint()
             parameter_dict["view_up_for_openGL"] = cam.GetViewUp()
             parameter_dict['scene_points'] = scene_points
+            parameter_dict['scene_points_normal'] = scene_points_normals
             parameter_dict['contour'] = self.iren.GetInteractorStyle().contour
             parameter_dict['contour_index'] = self.iren.GetInteractorStyle().contour_index
         self.axes.SetVisibility(False)
@@ -392,6 +396,7 @@ class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
         self.mesh = mesh_data
         self.pixel_points = []
         self.scene_points = []
+        self.scene_points_normals = []
         self.pred_point_id = -1
         self.current_point_id = -1
         self.label_points = False
@@ -419,6 +424,9 @@ class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
             # worldcoords = coords.GetComputedWorldValue(self.GetInteractor().GetRenderWindow().GetRenderers().GetFirstRenderer());
             # If CellId = -1, nothing was picked
             point_position = picker.GetPickPosition()
+            # get normal vector of the picked point
+            normal = picker.GetPickNormal()
+
             print("Pick position is: ", point_position)
             print("Picked cell is: ", cell_id)
             print("cell related vertex id :", self.mesh.GetCell(cell_id).GetPointId(0),
@@ -427,6 +435,7 @@ class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
             if self.label_points:
                 self.pixel_points.append(clickPos)
                 self.scene_points.append(point_position)
+                self.scene_points_normals.append(normal)
             elif self.label_contour:
                 self.current_point_id = picker.GetPointId()
                 if self.pred_point_id != -1 and self.label_contour:
@@ -457,6 +466,9 @@ class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
 
     def get_points(self):
         return self.pixel_points, self.scene_points
+
+    def get_points_normals(self):
+        return self.scene_points_normals
 
     def draw_lines(self):
         dijkstra = vtk.vtkDijkstraGraphGeodesicPath()
