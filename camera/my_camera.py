@@ -440,7 +440,6 @@ class Camera_VTK:
             self.camera.SetPosition(origin)
             self.camera.SetFocalPoint(look_at)
             self.iren.GetRenderWindow().Render()
-
         return
 
 class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
