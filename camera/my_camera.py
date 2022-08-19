@@ -11,6 +11,19 @@ import time
 from rough_registraion.guess_pose import *
 import cv2
 np.set_printoptions(suppress=True)
+import vtk.vtkInteractionStyle
+# noinspection PyUnresolvedReferences
+import vtk.vtkRenderingOpenGL2
+from vtk.vtkCommonColor import vtkNamedColors
+from vtk.vtkFiltersSources import vtkPlaneSource
+from vtk.vtkRenderingCore import (
+    vtkActor,
+    vtkPolyDataMapper,
+    vtkRenderWindow,
+    vtkRenderWindowInteractor,
+    vtkRenderer
+)
+
 
 def loadSTL(filenameSTL):
     readerSTL = vtk.vtkSTLReader()
@@ -81,7 +94,7 @@ class Camera_VTK:
             self.read_tet = True
         self.init_stl(self.read_tet)
 
-    def  snapshot(self, type='target'):
+    def snapshot(self, type='target'):
         cam = self.renderer.GetActiveCamera()
         pixel_points, scene_points = self.iren.GetInteractorStyle().get_points()
         scene_points_normals = self.iren.GetInteractorStyle().get_points_normals()
@@ -187,6 +200,8 @@ class Camera_VTK:
             self.mesh_reader.Update()
             assert (self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('vtu')), "Tet filename must be endswith \'vtk\'."
             self.filter = vtk.vtkDataSetSurfaceFilter()
+            output = self.mesh_reader.GetOutput()
+            # convert output to stl format.
             self.filter.SetInputData(self.mesh_reader.GetOutput())
             self.filter.Update()
             self.polydata = self.filter.GetOutput()
@@ -247,17 +262,43 @@ class Camera_VTK:
         self.stlActor = vtk.vtkActor()
         self.stlActor.SetMapper(self.stlMapper)
         # self.stlActor.GetProperty().SetOpacity(0.5)
+        # self.stlActor.GetProperty().SetColor(100, 0, 50)
 
         self.axes = vtk.vtkAxesActor()
         self.axes.SetTotalLength(1000, 1000, 1000)
 
+        planeSource = vtkPlaneSource()
+        planeSource.SetCenter(0.0, -10, 0.0)
+        planeSource.SetOrigin(-1000.0, -10, -1000.0)
+        planeSource.SetPoint1(-1000.0, -10, 1000.0)
+        planeSource.SetPoint2(1000.0, -10, -1000.0)
+        planeSource.Update()
+
+        plane = planeSource.GetOutput()
+
+
+        # Create a mapper and actor
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(plane)
+
+        colors = vtkNamedColors()
+
+        # Set the background color.
+        colors.SetColor('BkgColor', [26, 51, 77, 255])
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(colors.GetColor3d('Banana'))
+        actor.GetProperty().SetLighting(False)
+
         self.renderer = vtk.vtkRenderer()
         self.renderer.AddActor(self.stlActor)
         self.renderer.AddActor(self.axes)
+        self.renderer.AddActor(actor)
         self.axes.SetVisibility(True)
         self.renderer.SetBackground(0, 0, 0)
 
         self.camera = vtk.vtkCamera()
+
 
         aspect = self.f[1] / self.f[0]
         v_angle = 180 / np.pi * 2.0 * np.arctan2(self.h / 2.0, self.f[1])
