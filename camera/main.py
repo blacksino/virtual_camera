@@ -20,7 +20,9 @@ if __name__ == '__main__':
     simple_stl_path = '/home/SENSETIME/xulixin2/Downloads/001713343/simple_liver.stl'
     simple_tet_path = '/data/tetgen_test/simple_liver.1.vtk'
     complex_tet_path = '/home/SENSETIME/xulixin2/code/MultiDomainMeshing/cmake-build-release/all_liver.vtu'
-    deformed_tet_path = '/home/SENSETIME/xulixin2/deformed_mesh.vtk'
+    # deformed_tet_path = '/home/SENSETIME/xulixin2/deformed_mesh.vtk'
+    # deformed_tet_path = '/home/SENSETIME/xulixin2/large_deformed.vtk'
+    deformed_tet_path = '/home/SENSETIME/xulixin2/code/SofaScene/example.vtk0.vtu'
     data_root_path = '/data/endoscope/simulation_data'
     # stl_poly_data = loadSTL(simple_stl_path)
     Camera_VTK(w, h, K, deformed_tet_path, data_root_path)

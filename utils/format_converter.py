@@ -1,60 +1,11 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# ensure python version is 3.8 or higher
+import sys
+assert sys.version_info >= (3, 8)
+import meshio
+import numpy as np
 
-# noinspection PyUnresolvedReferences
-
-import vtk.vtkInteractionStyle
-# noinspection PyUnresolvedReferences
-import vtk.vtkRenderingOpenGL2
-from vtk.vtkCommonColor import vtkNamedColors
-from vtk.vtkFiltersSources import vtkPlaneSource
-from vtk.vtkRenderingCore import (
-    vtkActor,
-    vtkPolyDataMapper,
-    vtkRenderWindow,
-    vtkRenderWindowInteractor,
-    vtkRenderer
-)
-
-
-def main():
-    colors = vtkNamedColors()
-
-    # Set the background color.
-    colors.SetColor('BkgColor', [26, 51, 77, 255])
-
-    # Create a plane
-    planeSource = vtkPlaneSource()
-    planeSource.SetCenter(1.0, 0.0, 0.0)
-    planeSource.SetNormal(1.0, 0.0, 1.0)
-    planeSource.Update()
-
-    plane = planeSource.GetOutput()
-
-    # Create a mapper and actor
-    mapper = vtkPolyDataMapper()
-    mapper.SetInputData(plane)
-
-    actor = vtkActor()
-    actor.SetMapper(mapper)
-    actor.GetProperty().SetColor(colors.GetColor3d('Banana'))
-
-    # Create a renderer, render window and interactor
-    renderer = vtkRenderer()
-    renderWindow = vtkRenderWindow()
-    renderWindow.SetWindowName('Plane')
-    renderWindow.AddRenderer(renderer)
-    renderWindowInteractor = vtkRenderWindowInteractor()
-    renderWindowInteractor.SetRenderWindow(renderWindow)
-
-    # Add the actors to the scene
-    renderer.AddActor(actor)
-    renderer.SetBackground(colors.GetColor3d('BkgColor'))
-
-    # Render and interact
-    renderWindow.Render()
-    renderWindowInteractor.Start()
-
-
-if __name__ == '__main__':
-    main()
+vtk_file = meshio.read('/home/SENSETIME/xulixin2/code/MultiDomainMeshing/cmake-build-release/simple_liver.vtu')
+meshio.vtk.write('/home/SENSETIME/xulixin2/code/MultiDomainMeshing/cmake-build-release/simple_liver.vtk',vtk_file,fmt_version='4.2',binary=False)
+meshio.write()
+#write tetgen node
+meshio.write()

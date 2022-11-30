@@ -402,12 +402,11 @@ class Camera_VTK:
             self.silhouette = vtk.vtkPolyDataSilhouette()
             self.silhouette.SetInputData(self.iren.GetInteractorStyle().mesh)
             self.silhouette.SetCamera(self.renderer.GetActiveCamera())
-            self.silhouette.SetEnableFeatureAngle(1)
-            self.silhouette.SetFeatureAngle(180)
-            self.silhouette.PieceInvariantOn()
-            self.silhouette.SetDirectionToCameraOrigin()
-
-
+            # self.silhouette.SetEnableFeatureAngle(1)
+            self.silhouette.SetFeatureAngle(0)
+            self.silhouette.SetEnableFeatureAngle(0)
+            self.silhouette.BorderEdgesOn()
+            self.silhouette.GetBorderEdges()
             self.sil_mapper = vtk.vtkPolyDataMapper()
             self.sil_mapper.SetInputConnection(self.silhouette.GetOutputPort())
             self.silhouette.Update()

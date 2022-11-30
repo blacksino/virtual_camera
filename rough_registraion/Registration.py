@@ -8,6 +8,11 @@ from MatchTestForPnP import load_json, project_points, \
     apply_affine_on_points, convert_coordinates_from_cv_to_gl, plot_points_in_log_polar
 from scipy.spatial.transform import Rotation as R
 from solveEPnP import rot_error
+from OSC_DP import OrientedShape
+
+
+
+
 
 fx = 500.0
 fy = 500.0
@@ -77,30 +82,26 @@ if __name__ == '__main__':
 
     projected_object_points_using_extrinsics = project_points(scene_points, extrinsics, K)
 
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    ax[0].scatter(image_points[:, 0], image_points[:, 1], c='r', s=2)
-    ax[1].scatter(projected_object_points_using_extrinsics[:, 0], projected_object_points_using_extrinsics[:, 1], c='b',
-                  s=2)
-    ax[0].set_title("image_points")
-    ax[1].set_title("guess projections")
-
-    ax[0].set_aspect('equal')
-    ax[1].set_aspect('equal')
-
+    plt.scatter(image_points[:, 0], image_points[:, 1], c='r', s=1)
+    plt.scatter(projected_object_points_using_extrinsics[:, 0], projected_object_points_using_extrinsics[:, 1], c='b',s=1)
+    #set aspact ratio to 1
+    plt.gca().set_aspect('equal')
+    # set title
+    plt.title('image points and projected object points')
     plt.show()
 
     # plot 3d scene points
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(scene_points[:, 0], scene_points[:, 1], scene_points[:, 2], c='g', s=2)
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_zlabel('z')
-    ax.set_title("scene_points")
-    # change view angle
-    ax.view_init(elev=12., azim=10)
-
-    plt.show()
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(scene_points[:, 0], scene_points[:, 1], scene_points[:, 2], c='g', s=2)
+    # ax.set_xlabel('x')
+    # ax.set_ylabel('y')
+    # ax.set_zlabel('z')
+    # ax.set_title("scene_points")
+    # # change view angle
+    # ax.view_init(elev=12., azim=10)
+    #
+    # plt.show()
 
     # try to solve pnp using opencv
     shape_image = SC.Shape(image_points)
@@ -108,6 +109,11 @@ if __name__ == '__main__':
 
     match_result, p1 = shape_image.matching(shape_projected, 1)
     match_result_inv, p2 = shape_projected.matching(shape_image, 1)
+
+
+
+    matrix,_ = OrientedShape(projected_object_points_using_extrinsics).preprocess_for_dp_matching(image_points)
+    matched_using_dp = projected_object_points_using_extrinsics[np.where(matrix==1)[1]]
 
     # _,rvec, tvec =cv2.solvePnP(scene_points, match_result_inv[1],K,distCoeffs=None,flags=cv2.SOLVEPNP_SQPNP,useExtrinsicGuess=False)
     _, rvec, tvec, inliers = cv2.solvePnPRansac(scene_points, match_result_inv[1], K, distCoeffs=None,

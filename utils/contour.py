@@ -21,4 +21,9 @@ def skeleton_demo(image):
 
 
 if __name__ == '__main__':
-    mask = extract_specific_color_region('/data/endoscope/simulation_data/contour.jpg')
+    img =cv2.imread('/home/SENSETIME/xulixin2/FUDAN_demo/target_frame.png')
+    # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    background_value = np.array([87,207,227])
+    img[img == background_value] = 0
+
+
