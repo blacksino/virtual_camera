@@ -26,12 +26,13 @@ def safe_makedir(directory):
         if e.errno != errno.EEXIST:
             raise
 
+
 # Read csv 4x4 matrix data into a vtkMatrix4x4 object
 def read_vtk_matrix(in_mat_file):
     in_matrix = np.loadtxt(in_mat_file, delimiter=',')
     vtk_mat = vtk.vtkMatrix4x4()
     for ix, iy in np.ndindex(in_matrix.shape):
-        vtk_mat.SetElement(ix, iy, in_matrix[ix,iy])
+        vtk_mat.SetElement(ix, iy, in_matrix[ix, iy])
     print("vtkMatrix={}".format(vtk_mat))
     return vtk_mat
 
@@ -46,6 +47,7 @@ def write_vtk_matrix(out_mat_file, vtk_mat):
                 vtk_mat.GetElement(row, 2), vtk_mat.GetElement(row, 3)))
     print("vtkMatrix={}".format(vtk_mat))
 
+
 def read_VTKPoly(filename):
     extension = path.splitext(filename)[1]
     if extension.lower() == ".ply":
@@ -59,6 +61,7 @@ def read_VTKPoly(filename):
     reader.SetFileName(filename)
     reader.Update()
     return reader.GetOutput()
+
 
 def render_points_VTK(ren, points, col, opacity=1.0):
     vtk_points = vtk.vtkPoints()
@@ -82,8 +85,8 @@ def render_points_VTK(ren, points, col, opacity=1.0):
 
     return render_VTK(ren, glyph.GetOutput(), col, opacity)
 
-def render_VTK(ren, polydata, col, opacity=1.0, texture_image=None):
 
+def render_VTK(ren, polydata, col, opacity=1.0, texture_image=None):
     polyMapper = vtk.vtkPolyDataMapper()
     polyMapper.SetInputData(polydata)
     polyActor = vtk.vtkActor()
@@ -98,7 +101,7 @@ def render_VTK(ren, polydata, col, opacity=1.0, texture_image=None):
             tcoord_filter = vtk.vtkTextureMapToPlane()
             tcoord_filter.SetInputData(polydata)
             tcoord_transf = vtk.vtkTransformTextureCoords()
-            tcoord_transf.SetScale(10.0,10.0,10.0)
+            tcoord_transf.SetScale(10.0, 10.0, 10.0)
             tcoord_transf.SetInputConnection(tcoord_filter.GetOutputPort())
             tcoord_transf.Update()
             polyMapper.SetInputData(tcoord_transf.GetOutput())
@@ -108,6 +111,7 @@ def render_VTK(ren, polydata, col, opacity=1.0, texture_image=None):
 
     ren.AddActor(polyActor)
     return polyActor
+
 
 def get_vtk_image_from_numpy(image_in):
     # Copied from this post: http://vtk.1045678.n5.nabble.com/Image-from-OpenCV-as-texture-td5748969.html
@@ -134,7 +138,7 @@ def get_vtk_image_from_numpy(image_in):
     # they are less than 3D, the remaining dimensions should be set to default values. The function padRightMinimum
     # adds default values to make the list 3D.
     vtk_image.SetDimensions(size[0], size[1], 1)
-    #vtk_image.SetSpacing(padRightMinimum(self.spacing, 3, 1))
+    # vtk_image.SetSpacing(padRightMinimum(self.spacing, 3, 1))
     vtk_image.SetOrigin(0, 0, 0)
 
     # Import the data (vtkArray) into the vtkImage
@@ -164,6 +168,7 @@ def setup_background_image(image_data, background_renderer):
     camera.SetParallelScale(0.5 * yd)
     camera.SetFocalPoint(xc, yc, 0.0)
     camera.SetPosition(xc, yc, d)
+
 
 # For ChAruco chessboard calibration images with Oarm - undistorted
 
@@ -278,7 +283,6 @@ print("P1={}".format(P1))
 print("P2={}".format(P2))
 print("Q={}".format(Q))
 
-
 # # Write out the configuration file as yaml
 # image_overlay_config_out = path.join(out_dir_anat, "image_overlay_config.yml")
 # image_overlay_config_data = cv2.FileStorage(image_overlay_config_out, cv2.FILE_STORAGE_WRITE)
@@ -297,7 +301,7 @@ CT_endoscope = read_VTKPoly(CT_endoscope_file)
 CT_to_camera_coords = read_vtk_matrix(CT_to_camera_matrix_file)
 
 render_window = vtk.vtkRenderWindow()
-render_window.SetSize(w*2, h)
+render_window.SetSize(w * 2, h)
 
 # Create a renderer to display the image in the background
 left_background_renderer = vtk.vtkRenderer()
@@ -333,10 +337,10 @@ style.setLeftRenderer(ren1)
 style.setRightRenderer(ren2)
 style.left_image = L_image_anat
 style.left_image_despeckle = L_image_anat.copy()
-style.left_image_despeckle[mask1==0] = 0
+style.left_image_despeckle[mask1 == 0] = 0
 style.right_image = R_image_anat
 style.right_image_despeckle = R_image_anat.copy()
-style.right_image_despeckle[mask2==0] = 0
+style.right_image_despeckle[mask2 == 0] = 0
 
 image_reader_texture = vtk.vtkPNGReader()
 image_reader_texture.SetFileName(CT_anatomy_texture_file)
@@ -349,15 +353,15 @@ ren2.AddActor(CT_anatomy_actor)
 
 style.addActor(CT_anatomy_actor)
 
-#surf_pts = []
-#with open(surf_pts_filename) as points_file:
+# surf_pts = []
+# with open(surf_pts_filename) as points_file:
 #    for line in points_file:
 #        row_data = [float(i) for i in line.split(',')]
 #        surf_pts.append(row_data)
-#surf_pts = np.asmatrix(surf_pts)
-#pointsActor = render_points_VTK(ren1, surf_pts, (0, 255, 0), 0.5)
-#ren2.AddActor(pointsActor)
-#pointsActor.SetUserTransform(CT_to_camera)
+# surf_pts = np.asmatrix(surf_pts)
+# pointsActor = render_points_VTK(ren1, surf_pts, (0, 255, 0), 0.5)
+# ren2.AddActor(pointsActor)
+# pointsActor.SetUserTransform(CT_to_camera)
 
 print("Setting left camera params ({}=={}), {}, {}".format(P1[0, 0], P1[1, 1], P1[0, 2], P1[1, 2]))
 style.near_z = 10.0
@@ -380,7 +384,7 @@ style.r_cx = P2[0, 2]
 style.r_cy = P2[1, 2]
 
 # R2_vtk = vtk.vtkMatrix4x4()
-#for i in range(3):
+# for i in range(3):
 #    for j in range(3):
 #        R2_vtk.SetElement(i, j, R1[i, j])
 print("Left to right translation: {}".format(P2[0, 3] / P2[0, 0]))
@@ -400,11 +404,11 @@ render_window.Render()
 style.setLeftProjection()
 style.setRightProjection()
 
-#surf_pts = np.loadtxt(fiducial_pts_filename, delimiter=',')
-#surf_pts = np.asmatrix(surf_pts)
-#pointsActor = render_points_VTK(ren1, surf_pts, (0, 255, 0), 0.5)
-#ren2.AddActor(pointsActor)
-#pointsActor.SetUserTransform(CT_to_camera)
+# surf_pts = np.loadtxt(fiducial_pts_filename, delimiter=',')
+# surf_pts = np.asmatrix(surf_pts)
+# pointsActor = render_points_VTK(ren1, surf_pts, (0, 255, 0), 0.5)
+# ren2.AddActor(pointsActor)
+# pointsActor.SetUserTransform(CT_to_camera)
 
 # Add the occlusion image?
 # style.show_occlusion = True
@@ -432,7 +436,7 @@ print("Making ZBuffer Images")
 # Get the z-buffer image
 ifilter = vtk.vtkWindowToImageFilter()
 ifilter.SetInput(render_window)
-#ifilter.ReadFrontBufferOff()
+# ifilter.ReadFrontBufferOff()
 # Trying ZBuffer output from https://vtk.org/Wiki/VTK/Examples/Cxx/Utilities/ZBuffer
 ifilter.SetScale(1, 1)
 ifilter.SetInputBufferTypeToZBuffer()
@@ -442,7 +446,7 @@ zbuffer = ifilter.GetOutput()
 
 # Extract the left image only (actually placed on the right)
 left_depth = vtk.vtkExtractVOI()
-left_depth.SetVOI(w, 2*w-1, 0, h-1, 0, 0)
+left_depth.SetVOI(w, 2 * w - 1, 0, h - 1, 0, 0)
 left_depth.SetInputData(zbuffer)
 left_depth.SetSampleRate(1, 1, 1)
 left_depth.Update()
@@ -450,7 +454,7 @@ left_zbuffer = left_depth.GetOutput()
 
 # Extract the left image only (actually placed on the right)
 right_depth = vtk.vtkExtractVOI()
-right_depth.SetVOI(0, w-1, 0, h-1, 0, 0)
+right_depth.SetVOI(0, w - 1, 0, h - 1, 0, 0)
 right_depth.SetInputData(zbuffer)
 right_depth.SetSampleRate(1, 1, 1)
 right_depth.Update()
@@ -462,13 +466,13 @@ right_zbuffer_range = right_zbuffer.GetScalarRange()
 print("Right depthmap scalar range = {}", right_zbuffer_range)
 
 ################# Convert to numpy array for manipulation
-#spacing = left_zbuffer.GetSpacing()
+# spacing = left_zbuffer.GetSpacing()
 
 vtk_data = left_zbuffer.GetPointData().GetScalars()
 numpy_data = vtk_to_numpy(vtk_data)
 dims = numpy_data.shape
 numpy_data = numpy_data.reshape(h, w)
-depth_image = np.flip(numpy_data,0)
+depth_image = np.flip(numpy_data, 0)
 
 print("numpy_data.shape= {}".format(numpy_data.shape))
 
@@ -476,9 +480,10 @@ print("numpy_data.shape= {}".format(numpy_data.shape))
 near_left, far_left = ren1.GetActiveCamera().GetClippingRange()
 
 # Pythonic method - perpective float depth to actual depth
-depth_image_d = -2.0 * near_left * far_left / ((depth_image-0.5) * 2.0 * (far_left - near_left) - near_left - far_left)
+depth_image_d = -2.0 * near_left * far_left / (
+            (depth_image - 0.5) * 2.0 * (far_left - near_left) - near_left - far_left)
 print("depth_image distance shape= {}".format(depth_image.shape))
-depth_image_scaled = 256.0*depth_image_d
+depth_image_scaled = 256.0 * depth_image_d
 cv2.imwrite(left_depth_image_out, depth_image_scaled.astype(np.ushort))
 
 vtk_data_right = right_zbuffer.GetPointData().GetScalars()
@@ -494,10 +499,10 @@ print("Right depth_image_range = {}", right_depth_image_range)
 
 near_right, far_right = ren2.GetActiveCamera().GetClippingRange()
 # Pythonic method - perspective OpenGL float depth to actual depth
-depth_image_right_d = -2.0 * near_right * far_right / ((depth_image_right-0.5) * 2.0 * (far_right - near_right) - near_right - far_right)
-depth_image_scaled_R = 256.0*depth_image_right_d
+depth_image_right_d = -2.0 * near_right * far_right / (
+            (depth_image_right - 0.5) * 2.0 * (far_right - near_right) - near_right - far_right)
+depth_image_scaled_R = 256.0 * depth_image_right_d
 cv2.imwrite(right_depth_image_out, depth_image_scaled_R.astype(np.ushort))
-
 
 print("Making Disparity Image")
 
@@ -517,7 +522,7 @@ print("stereo_calib.Q={}".format(stereo_calib.Q))
 disp_image = (tx * f / depth_image_d) - (cx1 - cx2)
 # Also calculate disparity from right to left
 disp_image_right = -(tx * f / depth_image_right_d) - (cx1 - cx2)
-disp_image_scaled = 256.0*disp_image
+disp_image_scaled = 256.0 * disp_image
 cv2.imwrite(disparity_image_out, disp_image_scaled.astype(np.ushort))
 
 # Calculate regions of occlusion (left and right)
@@ -532,13 +537,13 @@ spec_lo = np.array([180, 180, 180])
 spec_hi = np.array([255, 255, 255])
 
 # Mask image to only select browns
-#l_mask = cv2.inRange(L_rect_image_anat, spec_lo, spec_hi)
-#r_mask = cv2.inRange(R_rect_image_anat, spec_lo, spec_hi)
+# l_mask = cv2.inRange(L_rect_image_anat, spec_lo, spec_hi)
+# r_mask = cv2.inRange(R_rect_image_anat, spec_lo, spec_hi)
 
-#l_max =
+# l_max =
 # Change image to red where we found brown
-#image[mask>0]=(0,0,255)
-#mask = L_rect_image_anat > disp.min()
+# image[mask>0]=(0,0,255)
+# mask = L_rect_image_anat > disp.min()
 # Small error in depth is ok
 epsilon = 3.0
 # Should look to see if some of this can be written in a more pythonic way
@@ -547,7 +552,7 @@ for x in range(w):
     for y in range(h):
         # Start with the left image
         x_resample = x - int(disp_image[y, x] + 0.5)
-        #x_resample = x + int(disp_image[y, x])
+        # x_resample = x + int(disp_image[y, x])
         # Check if we are at the far clipping plane
         if depth_image[y, x] > 0.98:
             # Point not visible in the CT - Blue
@@ -557,12 +562,12 @@ for x in range(w):
             resample_image[y, x] = colL
             resample_image_diff[y, x] = colL
         elif x_resample < 0:
-                # Point outside image - Yellow
-                colL = (0, 255, 255)
-                resample_image[y, x] = colL
-                resample_image_diff[y, x] = colL
-                right_to_left_depth_image[y, x] = 0
-                right_to_left_depth_diff_image[y, x] = 0
+            # Point outside image - Yellow
+            colL = (0, 255, 255)
+            resample_image[y, x] = colL
+            resample_image_diff[y, x] = colL
+            right_to_left_depth_image[y, x] = 0
+            right_to_left_depth_diff_image[y, x] = 0
         else:
             left_z = depth_image_d[y, x]
             right_z = depth_image_right_d[y, x_resample]
@@ -587,7 +592,7 @@ for x in range(w):
 
         # Now do the right image
         x_resample = x - int(disp_image_right[y, x] + 0.5)
-        #x_resample = x + int(disp_image_right[y, x])
+        # x_resample = x + int(disp_image_right[y, x])
         # Check if we are at the far clipping plane
         if depth_image_right[y, x] > 0.98:
             # Point not visible in the CT - Blue
@@ -627,10 +632,10 @@ cv2.imwrite(resampled_right_diff_filename, resample_image_diff)
 colors = cv2.cvtColor(L_image_anat, cv2.COLOR_BGR2RGB)
 
 # Display cameras, CT, recon from disp
-#window_size = 3
-#min_disp = 16
-#num_disp = 96
-#stereo = cv2.StereoSGBM_create(minDisparity=min_disp,
+# window_size = 3
+# min_disp = 16
+# num_disp = 96
+# stereo = cv2.StereoSGBM_create(minDisparity=min_disp,
 #                              numDisparities=num_disp,
 #                              blockSize=16,
 #                              P1=8 * 3 * window_size ** 2,
@@ -641,11 +646,11 @@ colors = cv2.cvtColor(L_image_anat, cv2.COLOR_BGR2RGB)
 #                              speckleRange=32
 #                              )
 
-#print('computing disparity...')
-#disp = stereo.compute(L_rect_image_anat, R_rect_image_anat).astype(np.float32) / 16.0
-#print('disparity done')
-#disp_imagefile = path.join(out_dir_anat, path.splitext(path.basename(left_image_file_anat))[0]+'_disparity_SGBM.png')
-#cv2.imwrite(disp_imagefile, disp)
+# print('computing disparity...')
+# disp = stereo.compute(L_rect_image_anat, R_rect_image_anat).astype(np.float32) / 16.0
+# print('disparity done')
+# disp_imagefile = path.join(out_dir_anat, path.splitext(path.basename(left_image_file_anat))[0]+'_disparity_SGBM.png')
+# cv2.imwrite(disp_imagefile, disp)
 
 # To show OpenGL recon instead
 disp = disp_image
@@ -654,9 +659,7 @@ mask = disp > disp.min()
 points = points[mask]
 colors = colors[mask]
 
-
-
-#colors = [val for sublist in colors for val in sublist]
+# colors = [val for sublist in colors for val in sublist]
 colors_vtk = vtk.vtkUnsignedCharArray()
 colors_vtk.SetNumberOfComponents(3)
 colors_vtk.SetNumberOfTuples(len(points))
@@ -671,49 +674,48 @@ vtk_points = vtk.vtkPoints()
 for i in range(len(points)):
     vtk_points.InsertNextPoint(points[i, 0], points[i, 1], points[i, 2])
 
-
 # Code here is to use Dan reconstruction
 # For rectified images no need for R,T
 Camera1_rect = P1[0:3, 0:3]
-#Camera1_rect = Camera1_rect * R1
+# Camera1_rect = Camera1_rect * R1
 Camera2_rect = P2[0:3, 0:3]
-#Camera2_rect = Camera2_rect * R2
-#R_rect = R2 * R1.T
+# Camera2_rect = Camera2_rect * R2
+# R_rect = R2 * R1.T
 R_rect = np.eye(3)
 T_rect = np.matrix([[P2[0, 3] / P2[0, 0]], [0], [0]])
-#points = skscv.reconstruct_points_using_stoyanov(L_rect_image_anat, Camera1_rect, R_rect_image_anat, Camera2_rect, R_rect, T_rect, False)
-#points_3d = points[:, 0:3]
-#projected_points = Camera1_rect * np.asmatrix(points_3d).T
-#print('Projected points: {}'.format(projected_points))
-#projected_points = projected_points / projected_points[2, None, :]
-#print('Projected points norm: {}'.format(projected_points))
-#projected_points = projected_points.T
+# points = skscv.reconstruct_points_using_stoyanov(L_rect_image_anat, Camera1_rect, R_rect_image_anat, Camera2_rect, R_rect, T_rect, False)
+# points_3d = points[:, 0:3]
+# projected_points = Camera1_rect * np.asmatrix(points_3d).T
+# print('Projected points: {}'.format(projected_points))
+# projected_points = projected_points / projected_points[2, None, :]
+# print('Projected points norm: {}'.format(projected_points))
+# projected_points = projected_points.T
 
-#height, width = L_rect_image_anat.shape[:2]
-#projected_image= np.zeros((height,width,3), np.uint8)
+# height, width = L_rect_image_anat.shape[:2]
+# projected_image= np.zeros((height,width,3), np.uint8)
 # Look up colour from L_image_undistorted
-#print('L_rect_image_anat.shape: {}'.format(L_rect_image_anat.shape))
-#print('projected_image.shape: {}'.format(projected_image.shape))
-#print('points_3d.shape: {}'.format(points_3d.shape))
-#print('projected_points.shape: {}'.format(projected_points.shape))
-#print('len(projected_points): {}'.format(len(projected_points)))
+# print('L_rect_image_anat.shape: {}'.format(L_rect_image_anat.shape))
+# print('projected_image.shape: {}'.format(projected_image.shape))
+# print('points_3d.shape: {}'.format(points_3d.shape))
+# print('projected_points.shape: {}'.format(projected_points.shape))
+# print('len(projected_points): {}'.format(len(projected_points)))
 
-#vtk_points = vtk.vtkPoints()
-#for i in range(len(points_3d)):
+# vtk_points = vtk.vtkPoints()
+# for i in range(len(points_3d)):
 #    vtk_points.InsertNextPoint(points_3d[i, 0], points_3d[i, 1], points_3d[i, 2])
 polydata = vtk.vtkPolyData()
 polydata.SetPoints(vtk_points)
 
-#colors = vtk.vtkUnsignedCharArray()
-#colors.SetNumberOfComponents(3)
-#colors.SetNumberOfTuples(polydata.GetNumberOfPoints())
+# colors = vtk.vtkUnsignedCharArray()
+# colors.SetNumberOfComponents(3)
+# colors.SetNumberOfTuples(polydata.GetNumberOfPoints())
 
-#out_colours = np.zeros((len(points_3d),3), np.uint8)
-#print('out_colours.shape: {}'.format(out_colours.shape))
-#print('out_colours: {}'.format(out_colours))
-#for i in range(len(projected_points)):
-    #print('Projected points[{}] norm: {}'.format(i, projected_points[i]))
-    #print('Projected points[i][0] norm: {}'.format(projected_points.item(i, 0)))
+# out_colours = np.zeros((len(points_3d),3), np.uint8)
+# print('out_colours.shape: {}'.format(out_colours.shape))
+# print('out_colours: {}'.format(out_colours))
+# for i in range(len(projected_points)):
+# print('Projected points[{}] norm: {}'.format(i, projected_points[i]))
+# print('Projected points[i][0] norm: {}'.format(projected_points.item(i, 0)))
 #    x = int(round(projected_points.item(i, 0)))
 #    y = int(round(projected_points.item(i, 1)))
 #    if 0 <= x < L_rect_image_anat.shape[1] and 0 <= y < L_rect_image_anat.shape[0]:
@@ -725,8 +727,8 @@ polydata.SetPoints(vtk_points)
 #        colors.InsertTuple3(i, 0.0, 0.0, 0.0)
 
 
-#vtk_points = vtk.vtkPoints()
-#for i in range(len(points)):
+# vtk_points = vtk.vtkPoints()
+# for i in range(len(points)):
 #    print("Inserting Point: ({},{},{})".format(points[i, 0], points[i, 1], points[i, 2]))
 #    vtk_points.InsertNextPoint(points[i, 0], points[i, 1], points[i, 2])
 polydata = vtk.vtkPolyData()
@@ -755,7 +757,6 @@ source.SetRadius(0.2)
 source.SetNumberOfSides(4)
 source.SetNormal(1.0, 0.0, 0.0)
 
-
 glyph.SetSourceConnection(source.GetOutputPort())
 glyph.Update()
 
@@ -776,8 +777,8 @@ render_window.AddRenderer(ren)
 # Place camera half way up looking at the cameras and reconstruction
 # Placed away in the Y direction since you expect left/right cameras to be separated in X
 sep = np.linalg.norm(recon_centre)
-ren.GetActiveCamera().SetPosition(recon_centre[0]/2.0, recon_centre[1]/2.0+3.0*sep, recon_centre[2]/2.0)
-ren.GetActiveCamera().SetFocalPoint(recon_centre[0]/2.0, recon_centre[1]/2.0, recon_centre[2]/2.0)
+ren.GetActiveCamera().SetPosition(recon_centre[0] / 2.0, recon_centre[1] / 2.0 + 3.0 * sep, recon_centre[2] / 2.0)
+ren.GetActiveCamera().SetFocalPoint(recon_centre[0] / 2.0, recon_centre[1] / 2.0, recon_centre[2] / 2.0)
 up_v = -recon_centre / sep
 ren.GetActiveCamera().SetViewUp(up_v)
 ren.AddActor(pointActor1)
@@ -826,7 +827,7 @@ print("Saving rendered image")
 # Get the z-buffer image
 ifilter = vtk.vtkWindowToImageFilter()
 ifilter.SetInput(render_window)
-#ifilter.ReadFrontBufferOff()
+# ifilter.ReadFrontBufferOff()
 ifilter.SetScale(1, 1)
 ifilter.Modified()
 ifilter.Update()
@@ -836,5 +837,3 @@ rendered_image_filename = path.join(image_data_output_dir, im_num + '_rendering.
 writer.SetFileName(rendered_image_filename)
 writer.Write()
 sys.exit(0)
-
-

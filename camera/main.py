@@ -2,14 +2,13 @@ from my_camera import *
 
 
 if __name__ == '__main__':
-    fx = 500.0
-    fy = 500.0
+    fx = 9.9640e+02
+    fy = 9.9640e+02
+    w = 720
+    h = 576
 
-    w = 1280
-    h = 720
-
-    cx = w/2
-    cy = h/2
+    cx = 375
+    cy = 240
 
     K = np.array([[fx, 0., cx],
                   [0., fy, cy],
@@ -25,5 +24,9 @@ if __name__ == '__main__':
     deformed_tet_path = '/home/SENSETIME/xulixin2/code/SofaScene/example.vtk0.vtu'
     data_root_path = '/data/endoscope/simulation_data'
     # stl_poly_data = loadSTL(simple_stl_path)
-    Camera_VTK(w, h, K, deformed_tet_path, data_root_path)
+    manual_align_vtk_path = '/home/SENSETIME/xulixin2/下载/SERV-CT-ALL/CT/008/Anatomy.vtk'
+    Camera_VTK(w, h, K, manual_align_vtk_path, data_root_path,background_path=
+               '/home/SENSETIME/xulixin2/下载/SERV-CT-ALL/Experiment_1/Left_rectified/008.png')
+
+
 

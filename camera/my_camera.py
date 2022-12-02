@@ -1,5 +1,5 @@
 import numpy as np
-from vtk.util.numpy_support import vtk_to_numpy,numpy_to_vtk
+from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from vtk.util import numpy_support
 import os
 # import vtkmodules.all as vtk
@@ -10,6 +10,7 @@ from outline_test import *
 import time
 from rough_registraion.guess_pose import *
 import cv2
+
 np.set_printoptions(suppress=True)
 import vtk.vtkInteractionStyle
 # noinspection PyUnresolvedReferences
@@ -71,12 +72,70 @@ def trans_to_matrix(trans):
     return matrix
 
 
+def setup_background_image(image_data, background_renderer):
+    # Set up the background camera to fill the renderer with the image
+    # Create an image actor to display the image
+    image_actor = vtk.vtkImageActor()
+    image_actor.SetInputData(image_data)
+    background_renderer.AddActor(image_actor)
+
+    origin = image_data.GetOrigin()
+    spacing = image_data.GetSpacing()
+    extent = image_data.GetExtent()
+
+    camera = background_renderer.GetActiveCamera()
+    camera.ParallelProjectionOn()
+
+    xc = origin[0] + 0.5 * (extent[0] + extent[1]) * spacing[0]
+    yc = origin[1] + 0.5 * (extent[2] + extent[3]) * spacing[1]
+    # xd = (extent[1] - extent[0] + 1) * spacing[0]
+    yd = (extent[3] - extent[2] + 1) * spacing[1]
+    d = camera.GetDistance()
+    camera.SetParallelScale(0.5 * yd)
+    camera.SetFocalPoint(xc, yc, 0.0)
+    camera.SetPosition(xc, yc, d)
+
+
+def get_vtk_image_from_numpy(image_in):
+    # Copied from this post: http://vtk.1045678.n5.nabble.com/Image-from-OpenCV-as-texture-td5748969.html
+    # Thanks to Addison Elliott
+    #
+    # Use VTK support function to convert Numpy to VTK array
+    # The data is reshaped to one long 2D array where the first dimension is the data and the second dimension is
+    # the color channels (1, 3 or 4 typically)
+    # Note: Fortran memory ordering is required to import the data correctly
+    # Type is not specified, default is to use type of Numpy array
+    image_rgb = cv2.cvtColor(image_in, cv2.COLOR_BGR2RGB)
+    imge_flip = np.transpose(image_rgb, (1, 0, 2))
+    imge_flip = np.flip(imge_flip, 1)
+    dims = imge_flip.shape
+    # print("dims = {}".format(dims))
+    size = dims[:2]
+    channels = dims[-1]
+    vtkArray = numpy_to_vtk(imge_flip.reshape((-1, channels), order='F'), deep=False)
+
+    # Create image, set parameters and import data
+    vtk_image = vtk.vtkImageData()
+
+    # For vtkImage, dimensions, spacing and origin is assumed to be 3D. VTK images cannot be larger than 3D and if
+    # they are less than 3D, the remaining dimensions should be set to default values. The function padRightMinimum
+    # adds default values to make the list 3D.
+    vtk_image.SetDimensions(size[0], size[1], 1)
+    # vtk_image.SetSpacing(padRightMinimum(self.spacing, 3, 1))
+    vtk_image.SetOrigin(0, 0, 0)
+
+    # Import the data (vtkArray) into the vtkImage
+    vtk_image.GetPointData().SetScalars(vtkArray)
+    return vtk_image
+
+
+
 class Camera_VTK:
     """
     Example class showing how to project a 3D world coordinate onto a 2D image plane using VTK
     """
 
-    def __init__(self, w, h, K, mesh_path, data_root_path):
+    def __init__(self, w, h, K, mesh_path, data_root_path, background_path=None, read_tet=False):
         self.w = w
         self.h = h
         self.K = K  # Camera matrix
@@ -85,14 +144,15 @@ class Camera_VTK:
         self.c = K[:2, 2]  # principal point
 
         # projection of 3D sphere center onto the image plane
-
+        if background_path != None:
+            self.background_image = cv2.imread(background_path)
+            # self.background_image = cv2.cvtColor(self.background_image, cv2.COLOR_BGR2RGB)
+            self.background_image = get_vtk_image_from_numpy(self.background_image)
         self.mesh_path = mesh_path
         self.data_path = data_root_path
         # self.init_vtk()
-        self.read_tet = False
-        if self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('.vtu'):
-            self.read_tet = True
-        self.init_stl(self.read_tet)
+        self.read_tet = read_tet
+        self.init_model(self.read_tet)
 
     def snapshot(self, type='target'):
         cam = self.renderer.GetActiveCamera()
@@ -115,7 +175,7 @@ class Camera_VTK:
         #                       [0., fy, cy],
         #                       [0., 0., 1.]])
 
-        center = self.stlMapper.GetCenter()
+        center = self.polyMapper.GetCenter()
         extrinsics = np.linalg.inv(vtkmatrix_to_numpy(cam.GetViewTransformMatrix()))
         """
         vtk中相机的内参由多个option决定，具体可以参阅：vtk.vtkCamera.GetProjectionMatrix的源码。
@@ -158,7 +218,8 @@ class Camera_VTK:
             parameter_dict["cam_position_for_openGL"] = cam.GetPosition()
             parameter_dict["look_at_position_for_openGL"] = cam.GetFocalPoint()
             parameter_dict["view_up_for_openGL"] = cam.GetViewUp()
-            parameter_dict['cam_projection_matrix'] = vtkmatrix_to_numpy(cam.GetProjectionTransformMatrix(1, cam.GetClippingRange()[0], cam.GetClippingRange()[1])).tolist()
+            parameter_dict['cam_projection_matrix'] = vtkmatrix_to_numpy(
+                cam.GetProjectionTransformMatrix(1, cam.GetClippingRange()[0], cam.GetClippingRange()[1])).tolist()
             parameter_dict['init_bbox'] = self.polydata.GetBounds()
             parameter_dict['scene_points'] = scene_points
             parameter_dict['scene_points_normals'] = scene_points_normals
@@ -188,23 +249,54 @@ class Camera_VTK:
                 json.dump(parameter_dict, f, indent=1)
         self.axes.SetVisibility(True)
         print('Image and Parameters has been saved.')
+
+        # now we capture the depth map
+        # first we should get the depth buffer
+        z_near, z_far = cam.GetClippingRange()
+        width, height = self.renWin.GetSize()
+        z_buffer_data = vtk.vtkFloatArray()
+        self.renWin.GetZbufferData(0, 0, width - 1, height - 1, z_buffer_data)
+        z_buffer_data = numpy_support.vtk_to_numpy(z_buffer_data)
+        z_buffer_data = z_buffer_data.reshape((height, width))
+        # flip z_buffer_data along the y axis
+        z_buffer_data = np.flip(z_buffer_data, axis=0)
+        # z_buffer is in the range of [0, 1] actually
+        z_ndc = 2 * z_buffer_data - 1
+        # now we can get the z_eye
+        z_eye = 2 * z_near * z_far / (z_ndc * (z_far - z_near) - z_far - z_near)
+        # multiply -1 to make the z_eye in the same direction as the z_world
+        z_eye = -1 * z_eye
+        # mask out the invalid depth
+        z_eye[z_buffer_data == 1] = np.nan
+
+        # now rescale the z_eye to the range of [0, 256]
+        z_eye = z_eye * 256
+        z_eye = z_eye.astype(np.uint8)
+        cv2.imwrite(os.path.join(all_path, 'depth.png'), z_eye)
         return
 
-    def init_stl(self, read_tet=False):
-        if read_tet:
-            if self.mesh_path.endswith('.vtk'):
-                self.mesh_reader = vtk.vtkUnstructuredGridReader()
-            elif self.mesh_path.endswith('.vtu'):
-                self.mesh_reader = vtk.vtkXMLUnstructuredGridReader()
-            self.mesh_reader.SetFileName(self.mesh_path)
-            self.mesh_reader.Update()
-            assert (self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('vtu')), "Tet filename must be endswith \'vtk\'."
-            self.filter = vtk.vtkDataSetSurfaceFilter()
-            output = self.mesh_reader.GetOutput()
-            # convert output to stl format.
-            self.filter.SetInputData(self.mesh_reader.GetOutput())
-            self.filter.Update()
-            self.polydata = self.filter.GetOutput()
+    def init_model(self, read_tet=False):
+        # get the file extension name
+        if self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('vtu'):
+            if self.read_tet:
+                if self.mesh_path.endswith('.vtk'):
+                    self.mesh_reader = vtk.vtkUnstructuredGridReader()
+                elif self.mesh_path.endswith('.vtu'):
+                    self.mesh_reader = vtk.vtkXMLUnstructuredGridReader()
+                self.mesh_reader.SetFileName(self.mesh_path)
+                self.mesh_reader.Update()
+                self.filter = vtk.vtkDataSetSurfaceFilter()
+                output = self.mesh_reader.GetOutput()
+                # convert output to stl format.
+                self.filter.SetInputData(self.mesh_reader.GetOutput())
+                self.filter.Update()
+                self.polydata = self.filter.GetOutput()
+            else:
+                self.mesh_reader = vtk.vtkPolyDataReader()
+                self.mesh_reader.SetFileName(self.mesh_path)
+                self.mesh_reader.Update()
+                self.polydata = self.mesh_reader.GetOutput()
+
         else:
             assert self.mesh_path.endswith('.stl'), "Mesh filename must be endswith \'stl\'."
             self.mesh_reader = vtk.vtkSTLReader()
@@ -212,94 +304,73 @@ class Camera_VTK:
             self.mesh_reader.Update()
             self.polydata = self.mesh_reader.GetOutput()
 
-        # homo = np.array([[7.70447492e-01, 1.13129606e-01, -6.27385332e-01,
-        #                   1.21716375e+01],
-        #                  [-6.32456199e-01, 2.59231539e-01, -7.29930247e-01,
-        #                   1.15295606e+02],
-        #                  [8.00613438e-02, 9.59166670e-01, 2.71273809e-01,
-        #                   4.97675173e+02],
-        #                  [0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-        #                   1.00000000e+00]])
-        # tfm = vtk.vtkTransform()
-        # tfm.SetMatrix(trans_to_matrix(np.linalg.inv(homo)))
-        # filter = vtk.vtkTransformFilter()
-        # filter.SetInputData(self.polydata)
-        # filter.SetTransform(tfm)
-        # filter.Update()
-        # self.polydata = filter.GetOutput()
+        homo = np.array([[-0.58663026, 0.80751273, 0.0615477, -140.99337367],
+                         [0.33761624, 0.31292948, -0.88774457, -209.90521739],
+                         [-0.73612513, -0.49999833, -0.45620331, 34.01865876],
+                         [0., 0., 0., 1.]])
 
-        # pl = list()
-        # fl = list()
-        # points = self.polydata.GetPoints()
-        # for i in range(points.GetNumberOfPoints()):
-        #     pl.append(points.GetPoint(i))
-        #
-        # for j in range(self.polydata.GetNumberOfCells()):
-        #     fl.append([self.polydata.GetCell(j).GetPointId(0), self.polydata.GetCell(j).GetPointId(1),
-        #                self.polydata.GetCell(j).GetPointId(2)])
-        #
-        # pl = np.asarray(pl)
-        # fl = np.asarray(fl)
-        # v, f = pl, fl
-        # v_2d = v[:, :2]
-        # v_2d[:, 0], v_2d[:, 1] = -v_2d[:, 0] / v[:, 2], -v_2d[:, 1] / v[:, 2]
-        # points, ids = tracing_outline_robust(v_2d, fl)
-        # fig = plt.figure(figsize=(9, 9))
-        # # plt.triplot( v_2d[:, 0], v_2d[:, 1], f)
-        # plt.plot(v_2d[ids][20:30, 0], v_2d[ids][20:30, 1])
-        # plt.plot(v_2d[ids][:, 0], v_2d[ids][:, 1], 'r.')
-        # plt.show()
-
-        self.stlMapper = vtk.vtkPolyDataMapper()
-
-        self.stlMapper.SetInputData(self.polydata)
-        # self.stlMapper.SetInputConnection(self.stl_reader.GetOutputPort())
+        z_rot = np.array([[0, -1, 0, 0],
+                          [1, 0, 0, 0],
+                          [0, 0, 1, 0],
+                          [0, 0, 0, 1]])
+        homo = z_rot @ np.linalg.inv(homo)
+        tfm = vtk.vtkTransform()
+        tfm.SetMatrix(trans_to_matrix(homo))
+        filter = vtk.vtkTransformFilter()
+        filter.SetInputData(self.polydata)
+        filter.SetTransform(tfm)
+        filter.Update()
+        self.polydata = filter.GetOutput()
+        self.polyMapper = vtk.vtkPolyDataMapper()
+        self.polyMapper.SetInputData(self.polydata)
+        # self.polyMapper.SetInputConnection(self.stl_reader.GetOutputPort())
 
         """
         set mapper
 
         """
-        self.stlActor = vtk.vtkActor()
-        self.stlActor.SetMapper(self.stlMapper)
-        # self.stlActor.GetProperty().SetOpacity(0.5)
-        # self.stlActor.GetProperty().SetColor(100, 0, 50)
+        self.meshActor = vtk.vtkActor()
+        self.meshActor.SetMapper(self.polyMapper)
 
         self.axes = vtk.vtkAxesActor()
-        self.axes.SetTotalLength(1000, 1000, 1000)
+        self.axes.SetTotalLength(10000, 10000, 10000)
 
-        planeSource = vtkPlaneSource()
-        planeSource.SetCenter(0.0, -10, 0.0)
-        planeSource.SetOrigin(-1000.0, -10, -1000.0)
-        planeSource.SetPoint1(-1000.0, -10, 1000.0)
-        planeSource.SetPoint2(1000.0, -10, -1000.0)
-        planeSource.Update()
-
-        plane = planeSource.GetOutput()
-
-
-        # Create a mapper and actor
-        mapper = vtkPolyDataMapper()
-        mapper.SetInputData(plane)
+        # planeSource = vtkPlaneSource()
+        # planeSource.SetCenter(0.0, -10, 0.0)
+        # planeSource.SetOrigin(-1000.0, -10, -1000.0)
+        # planeSource.SetPoint1(-1000.0, -10, 1000.0)
+        # planeSource.SetPoint2(1000.0, -10, -1000.0)
+        # planeSource.Update()
+        #
+        # plane = planeSource.GetOutput()
+        #
+        #
+        # # Create a mapper and actor
+        # mapper = vtkPolyDataMapper()
+        # mapper.SetInputData(plane)
 
         colors = vtkNamedColors()
 
         # Set the background color.
         colors.SetColor('BkgColor', [26, 51, 77, 255])
-        actor = vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetColor(colors.GetColor3d('Banana'))
-        actor.GetProperty().SetLighting(False)
+        # actor = vtkActor()
+        # actor.SetMapper(mapper)
+        # actor.GetProperty().SetColor(colors.GetColor3d('Banana'))
+        # actor.GetProperty().SetLighting(False)
+        self.background_render = vtk.vtkRenderer()
+        self.background_render.SetLayer(0)
+        self.background_render.InteractiveOff()
+        setup_background_image(self.background_image,self.background_render)
 
         self.renderer = vtk.vtkRenderer()
-        self.renderer.AddActor(self.stlActor)
+        self.renderer.SetLayer(1)
+        self.renderer.AddActor(self.meshActor)
         self.renderer.AddActor(self.axes)
-        self.renderer.AddActor(actor)
+        # self.renderer.AddActor(actor)
         self.axes.SetVisibility(True)
         self.renderer.SetBackground(0, 0, 0)
 
         self.camera = vtk.vtkCamera()
-
-
         aspect = self.f[1] / self.f[0]
         v_angle = 180 / np.pi * 2.0 * np.arctan2(self.h / 2.0, self.f[1])
         wcx = -2.0 * (self.c[0] - self.w / 2.0) / self.w
@@ -313,29 +384,29 @@ class Camera_VTK:
         self.camera.SetWindowCenter(wcx, wcy)
         self.camera.SetViewAngle(v_angle)
 
-
         m = np.eye(4)
         m[0, 0] = 1.0 / aspect
         t = vtk.vtkTransform()
         t.SetMatrix(m.flatten())
         self.camera.SetUserTransform(t)
 
-
         self.renderer.SetActiveCamera(self.camera)
         # self.camera.GetFrustumPlanes()
 
         self.renWin = vtk.vtkRenderWindow()
+        self.renWin.SetNumberOfLayers(2)
         self.renWin.SetSize(self.w, self.h)
         if self.h == 1080 and self.w == 1920:
             self.renWin.SetFullScreen(True)
 
         self.renWin.AddRenderer(self.renderer)
+        self.renWin.AddRenderer(self.background_render)
         self.iren = vtk.vtkRenderWindowInteractor()
         self.iren.SetRenderWindow(self.renWin)
 
         self.style = MyInteractor(self.polydata)
         self.style.picker = vtk.vtkCellPicker()
-        self.style.picker.AddPickList(self.stlActor)
+        self.style.picker.AddPickList(self.meshActor)
         self.style.SetDefaultRenderer(self.renderer)
         self.style.AddObserver('RightButtonPressEvent', self.style.RightButtonPressEvent)
         self.iren.SetInteractorStyle(self.style)
@@ -352,7 +423,7 @@ class Camera_VTK:
                       "target frame,which record target extrinsics.")
                 self.snapshot(type='target')
             elif len(self.iren.GetInteractorStyle().scene_points) >= 4 and len(
-                    self.iren.GetInteractorStyle().contour) > 0:
+                    self.iren.GetInteractorStyle().contour) >= 0:
                 print(
                     f"This frame has been frozen,Notice That there are {len(self.iren.GetInteractorStyle().scene_points)} initial "
                     f"points,{len(self.iren.GetInteractorStyle().contour)} contour points, we assume that this frame is "
@@ -381,21 +452,21 @@ class Camera_VTK:
             self.iren.GetInteractorStyle().label_contour = False
             print("Exit Labeling mode.")
         elif key == '8':
-            current_opacity = self.stlActor.GetProperty().GetOpacity()
-            if current_opacity > 1:
+            current_opacity = self.meshActor.GetProperty().GetOpacity()
+            if current_opacity > 1 or current_opacity < 0:
                 return
             else:
                 print("Decrease Opacity")
-                self.stlActor.GetProperty().SetOpacity(1)
+                self.meshActor.GetProperty().SetOpacity(current_opacity - 0.1)
                 self.iren.GetRenderWindow().Render()
 
         elif key == '9':
-            current_opacity = self.stlActor.GetProperty().GetOpacity()
-            if current_opacity < 0.1:
+            current_opacity = self.meshActor.GetProperty().GetOpacity()
+            if current_opacity > 1:
                 return
             else:
                 print("Increase Opacity")
-                self.stlActor.GetProperty().SetOpacity(0.5)
+                self.meshActor.GetProperty().SetOpacity(current_opacity + 0.1)
                 self.iren.GetRenderWindow().Render()
         elif key == 's':
             print('Extracting Silhouette.')
@@ -427,7 +498,7 @@ class Camera_VTK:
         elif key == 'c':
             print('Clear Silhouette.')
             self.renderer.RemoveActor(self.sil_actor)
-            self.renderer.AddActor(self.stlActor)
+            self.renderer.AddActor(self.meshActor)
             self.renderer.Render()
         elif key == 't':
             self.renderer.ResetCamera()
@@ -481,6 +552,7 @@ class Camera_VTK:
             self.camera.SetFocalPoint(look_at)
             self.iren.GetRenderWindow().Render()
         return
+
 
 class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
 
@@ -608,5 +680,3 @@ class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
         self.contour_index.append(seg_index)
         render.AddActor(lineActor)
         render.Render()
-
-

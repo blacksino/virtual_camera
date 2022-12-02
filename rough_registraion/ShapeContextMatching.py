@@ -38,6 +38,8 @@ class Shape:
         self.shape_pts = []
         for point in shape:
             self.shape_pts.append(Point(point[0], point[1]))
+        # deep copy
+        self.original_shape_pts = [Point(point.x, point.y) for point in self.shape_pts]
         self.distance_map = np.zeros((len(self.shape_pts), len(self.shape_pts)))
         self.shape_contexts = self.get_shape_contexts()
         # self.log_polar_points = [point.cart2logpolar() for point in self.shape_pts]
