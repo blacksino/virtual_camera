@@ -24,7 +24,9 @@ from vtk.vtkRenderingCore import (
     vtkRenderWindowInteractor,
     vtkRenderer
 )
-
+from utils import cv2gl
+import json
+import sys
 
 def loadSTL(filenameSTL):
     readerSTL = vtk.vtkSTLReader()
@@ -77,6 +79,7 @@ def setup_background_image(image_data, background_renderer):
     # Create an image actor to display the image
     image_actor = vtk.vtkImageActor()
     image_actor.SetInputData(image_data)
+    image_actor.SetOpacity(0.8)
     background_renderer.AddActor(image_actor)
 
     origin = image_data.GetOrigin()
@@ -129,13 +132,12 @@ def get_vtk_image_from_numpy(image_in):
     return vtk_image
 
 
-
 class Camera_VTK:
     """
     Example class showing how to project a 3D world coordinate onto a 2D image plane using VTK
     """
 
-    def __init__(self, w, h, K, mesh_path, data_root_path, background_path=None, read_tet=False):
+    def __init__(self, w, h, K, mesh_path, data_root_path, background_path=None, read_tet=False,marker_path=None):
         self.w = w
         self.h = h
         self.K = K  # Camera matrix
@@ -150,9 +152,11 @@ class Camera_VTK:
             self.background_image = get_vtk_image_from_numpy(self.background_image)
         self.mesh_path = mesh_path
         self.data_path = data_root_path
+        self.marker_path = marker_path
         # self.init_vtk()
         self.read_tet = read_tet
-        self.init_model(self.read_tet)
+        self.delta = 1
+        self.init_model()
 
     def snapshot(self, type='target'):
         cam = self.renderer.GetActiveCamera()
@@ -275,7 +279,7 @@ class Camera_VTK:
         cv2.imwrite(os.path.join(all_path, 'depth.png'), z_eye)
         return
 
-    def init_model(self, read_tet=False):
+    def init_model(self):
         # get the file extension name
         if self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('vtu'):
             if self.read_tet:
@@ -304,23 +308,6 @@ class Camera_VTK:
             self.mesh_reader.Update()
             self.polydata = self.mesh_reader.GetOutput()
 
-        homo = np.array([[-0.58663026, 0.80751273, 0.0615477, -140.99337367],
-                         [0.33761624, 0.31292948, -0.88774457, -209.90521739],
-                         [-0.73612513, -0.49999833, -0.45620331, 34.01865876],
-                         [0., 0., 0., 1.]])
-
-        z_rot = np.array([[0, -1, 0, 0],
-                          [1, 0, 0, 0],
-                          [0, 0, 1, 0],
-                          [0, 0, 0, 1]])
-        homo = z_rot @ np.linalg.inv(homo)
-        tfm = vtk.vtkTransform()
-        tfm.SetMatrix(trans_to_matrix(homo))
-        filter = vtk.vtkTransformFilter()
-        filter.SetInputData(self.polydata)
-        filter.SetTransform(tfm)
-        filter.Update()
-        self.polydata = filter.GetOutput()
         self.polyMapper = vtk.vtkPolyDataMapper()
         self.polyMapper.SetInputData(self.polydata)
         # self.polyMapper.SetInputConnection(self.stl_reader.GetOutputPort())
@@ -360,7 +347,7 @@ class Camera_VTK:
         self.background_render = vtk.vtkRenderer()
         self.background_render.SetLayer(0)
         self.background_render.InteractiveOff()
-        setup_background_image(self.background_image,self.background_render)
+        setup_background_image(self.background_image, self.background_render)
 
         self.renderer = vtk.vtkRenderer()
         self.renderer.SetLayer(1)
@@ -369,7 +356,8 @@ class Camera_VTK:
         # self.renderer.AddActor(actor)
         self.axes.SetVisibility(True)
         self.renderer.SetBackground(0, 0, 0)
-
+        self.camera = vtk.vtkCamera()
+        self.renderer.SetActiveCamera(self.camera)
         self.camera = vtk.vtkCamera()
         aspect = self.f[1] / self.f[0]
         v_angle = 180 / np.pi * 2.0 * np.arctan2(self.h / 2.0, self.f[1])
@@ -391,7 +379,48 @@ class Camera_VTK:
         self.camera.SetUserTransform(t)
 
         self.renderer.SetActiveCamera(self.camera)
-        # self.camera.GetFrustumPlanes()
+
+
+        # pose_mat = np.array([[-0.742289232,	-0.058816695,	0.667493291	,-180.1266161],
+        #                      [0.526081725 ,- 0.668127612,    0.526159208 ,- 37.14742266],
+        #                      [0.415023753 ,   0.741718336,    0.52688632,    199.1487109],
+        #                      [0,    0 ,   0,    1]])
+
+        pose_mat = np.array([[-0.68943055, -0.71598163, 0.10979899, -212.26318759],
+                             [0.52100206, -0.38484477, 0.76187358, -21.55271046],
+                             [-0.50323192, 0.58246443, 0.63835165, 17.82693022],
+                             [0., 0., 0., 1.]])
+        pose_mat = np.linalg.inv(pose_mat)
+        matrix = vtk.vtkMatrix4x4()
+        for i in range(4):
+            for j in range(4):
+                matrix.SetElement(i, j, pose_mat[i, j])
+        cv2gl.set_camera_pose(self.camera,matrix)
+
+
+        if self.marker_path != None:
+            # read the marker json
+            with open(self.marker_path, 'r') as f:
+                marker_dict = json.load(f)
+            self.marker_points = np.array(marker_dict['scene_points'])
+            # visualize the marker points via red spheres
+            for each_point in self.marker_points:
+                sphere = vtk.vtkSphereSource()
+                sphere.SetCenter(each_point)
+                sphere.SetRadius(1)
+                sphere.Update()
+                sphere_mapper = vtk.vtkPolyDataMapper()
+                sphere_mapper.SetInputConnection(sphere.GetOutputPort())
+                sphere_actor = vtk.vtkActor()
+                sphere_actor.SetMapper(sphere_mapper)
+                sphere_actor.GetProperty().SetColor(1, 0, 0)
+                self.renderer.AddActor(sphere_actor)
+
+        # generate a video renderer
+        self.video_render = vtk.vtkRenderer()
+        self.video_render.SetLayer(2)
+        self.video_render.InteractiveOff()
+
 
         self.renWin = vtk.vtkRenderWindow()
         self.renWin.SetNumberOfLayers(2)
@@ -468,27 +497,27 @@ class Camera_VTK:
                 print("Increase Opacity")
                 self.meshActor.GetProperty().SetOpacity(current_opacity + 0.1)
                 self.iren.GetRenderWindow().Render()
-        elif key == 's':
-            print('Extracting Silhouette.')
-            self.silhouette = vtk.vtkPolyDataSilhouette()
-            self.silhouette.SetInputData(self.iren.GetInteractorStyle().mesh)
-            self.silhouette.SetCamera(self.renderer.GetActiveCamera())
-            # self.silhouette.SetEnableFeatureAngle(1)
-            self.silhouette.SetFeatureAngle(0)
-            self.silhouette.SetEnableFeatureAngle(0)
-            self.silhouette.BorderEdgesOn()
-            self.silhouette.GetBorderEdges()
-            self.sil_mapper = vtk.vtkPolyDataMapper()
-            self.sil_mapper.SetInputConnection(self.silhouette.GetOutputPort())
-            self.silhouette.Update()
-            self.sil_actor = vtk.vtkActor()
-            self.sil_actor.SetMapper(self.sil_mapper)
-            self.sil_actor.GetProperty().SetColor(0.1, 0.4, 1)
-            self.sil_actor.GetProperty().SetLineWidth(3)
-            self.renderer.AddActor(self.sil_actor)
+        # elif key == 's':
+        #     print('Extracting Silhouette.')
+        #     self.silhouette = vtk.vtkPolyDataSilhouette()
+        #     self.silhouette.SetInputData(self.iren.GetInteractorStyle().mesh)
+        #     self.silhouette.SetCamera(self.renderer.GetActiveCamera())
+        #     # self.silhouette.SetEnableFeatureAngle(1)
+        #     self.silhouette.SetFeatureAngle(0)
+        #     self.silhouette.SetEnableFeatureAngle(0)
+        #     self.silhouette.BorderEdgesOn()
+        #     self.silhouette.GetBorderEdges()
+        #     self.sil_mapper = vtk.vtkPolyDataMapper()
+        #     self.sil_mapper.SetInputConnection(self.silhouette.GetOutputPort())
+        #     self.silhouette.Update()
+        #     self.sil_actor = vtk.vtkActor()
+        #     self.sil_actor.SetMapper(self.sil_mapper)
+        #     self.sil_actor.GetProperty().SetColor(0.1, 0.4, 1)
+        #     self.sil_actor.GetProperty().SetLineWidth(3)
+        #     self.renderer.AddActor(self.sil_actor)
 
 
-        elif key == 'd':
+        elif key == 'r':
             print('Reset Camera.')
             self.camera.SetPosition(0, 0, 1)
             self.camera.SetFocalPoint(0, 0, 0)
@@ -550,6 +579,59 @@ class Camera_VTK:
             #         tfm.SetElement(i, j, homogeneous_transformation_matrix[i, j])
             self.camera.SetPosition(origin)
             self.camera.SetFocalPoint(look_at)
+            self.iren.GetRenderWindow().Render()
+
+        elif key == 'q':
+            self.iren.GetRenderWindow().Finalize()
+            self.iren.TerminateApp()
+            return
+        elif key == 'o':
+            # toggle the visibility of the mesh
+            if self.meshActor.GetVisibility() == 1:
+                print("Hide Mesh")
+                # disable the visibility of all actors
+                for actor in self.renderer.GetActors():
+                    actor.SetVisibility(0)
+
+            else:
+                print("Show Mesh")
+                self.meshActor.VisibilityOn()
+                for actor in self.renderer.GetActors():
+                    actor.SetVisibility(1)
+            self.iren.GetRenderWindow().Render()
+
+        elif key.lower() == 't':
+            self.parent.TerminateApp()
+        elif key == 'Escape':
+            sys.exit()
+        elif key == 'Control_L':
+            print("fine Z motion".format(key))
+            self.delta = 0.1
+        elif key == "Left":
+            print("Move Left")
+            # rotate the camera along the z axis
+            self.camera.Azimuth(self.delta)
+            self.iren.GetRenderWindow().Render()
+        elif key == "Right":
+            self.camera.Azimuth(-self.delta)
+            self.iren.GetRenderWindow().Render()
+        elif key == "Up":
+            self.camera.Elevation(self.delta)
+            self.iren.GetRenderWindow().Render()
+        elif key == "Down":
+            self.camera.Elevation(-self.delta)
+            self.iren.GetRenderWindow().Render()
+        elif key == "a":
+            self.camera.Roll(self.delta)
+            self.iren.GetRenderWindow().Render()
+        elif key == "d":
+            self.camera.Roll(-self.delta)
+            self.iren.GetRenderWindow().Render()
+        elif key == "w":
+            self.camera.Zoom(1.1)
+            self.iren.GetRenderWindow().Render()
+        elif key == "s":
+            self.camera.Zoom(0.9)
             self.iren.GetRenderWindow().Render()
         return
 

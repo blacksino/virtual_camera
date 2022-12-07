@@ -6,11 +6,15 @@ class FarthestPointSampler:
         self.n_sample = n_sample
         assert self.n_sample <= self.points.shape[0], "Sample number is larger than point number"
 
-    def sample(self):
+
+    def sample(self,with_index=False):
         # find the farthest point as seed
         farthest_idx = np.argmax(np.sum((self.points - self.points[0,:])**2,axis=1))
         sampled_points = []
+        sampled_index = []
         sampled_points.append(self.points[farthest_idx])
+        sampled_index.append(farthest_idx)
+
         # init dist with max int value
         dist = np.ones((self.points.shape[0],1)) * np.iinfo(np.int32).max
         while len(sampled_points) < self.n_sample:
@@ -20,5 +24,8 @@ class FarthestPointSampler:
             # find the farthest point from sampled points
             farthest_idx = np.argmax(dist)
             sampled_points.append(self.points[farthest_idx])
+            sampled_index.append(farthest_idx)
+        if with_index:
+            return np.array(sampled_points),np.array(sampled_index)
         return np.array(sampled_points)
 

@@ -59,7 +59,7 @@ def compute_projection_matrix(width,
     matrix.SetElement(3, 2, -1)
     return matrix
 
-def set_camera_intrinsics(vtk_renderer, vtk_camera, width, height,
+def set_camera_inrinsics(vtk_renderer, vtk_camera, width, height,
                           f_x,
                           f_y,
                           c_x,

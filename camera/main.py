@@ -26,7 +26,8 @@ if __name__ == '__main__':
     # stl_poly_data = loadSTL(simple_stl_path)
     manual_align_vtk_path = '/home/SENSETIME/xulixin2/下载/SERV-CT-ALL/CT/008/Anatomy.vtk'
     Camera_VTK(w, h, K, manual_align_vtk_path, data_root_path,background_path=
-               '/home/SENSETIME/xulixin2/下载/SERV-CT-ALL/Experiment_1/Left_rectified/008.png')
+               '/home/SENSETIME/xulixin2/图片/endo_label.png',
+               marker_path="/data/endoscope/simulation_data/14:50:17/registration.json")
 
 
 
