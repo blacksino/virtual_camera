@@ -3,7 +3,6 @@ from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from vtk.util import numpy_support
 import os
 # import vtkmodules.all as vtk
-import yaml
 import json
 from datetime import datetime
 from outline_test import *
@@ -75,6 +74,8 @@ def trans_to_matrix(trans):
 
 
 def setup_background_image(image_data, background_renderer):
+    if image_data is None:
+        return
     # Set up the background camera to fill the renderer with the image
     # Create an image actor to display the image
     image_actor = vtk.vtkImageActor()
@@ -97,6 +98,17 @@ def setup_background_image(image_data, background_renderer):
     camera.SetParallelScale(0.5 * yd)
     camera.SetFocalPoint(xc, yc, 0.0)
     camera.SetPosition(xc, yc, d)
+
+def set_background_video(video_path, background_renderer):
+
+    # play video via vtkImageReader2
+    reader = vtk.vtkImageReader2()
+    reader.SetFileName(video_path)
+    reader.Update()
+    image_data = reader.GetOutput()
+    setup_background_image(image_data, background_renderer)
+
+
 
 
 def get_vtk_image_from_numpy(image_in):
@@ -137,7 +149,8 @@ class Camera_VTK:
     Example class showing how to project a 3D world coordinate onto a 2D image plane using VTK
     """
 
-    def __init__(self, w, h, K, mesh_path, data_root_path, background_path=None, read_tet=False,marker_path=None):
+    def __init__(self, w, h, K, mesh_path, data_root_path, background_path=None, read_tet=False,marker_path=None,
+                 video_path=None):
         self.w = w
         self.h = h
         self.K = K  # Camera matrix
@@ -146,10 +159,13 @@ class Camera_VTK:
         self.c = K[:2, 2]  # principal point
 
         # projection of 3D sphere center onto the image plane
-        if background_path != None:
+        if background_path is not None:
             self.background_image = cv2.imread(background_path)
             # self.background_image = cv2.cvtColor(self.background_image, cv2.COLOR_BGR2RGB)
             self.background_image = get_vtk_image_from_numpy(self.background_image)
+        else:
+            self.background_image = None
+        self.video_path = video_path
         self.mesh_path = mesh_path
         self.data_path = data_root_path
         self.marker_path = marker_path
@@ -301,12 +317,18 @@ class Camera_VTK:
                 self.mesh_reader.Update()
                 self.polydata = self.mesh_reader.GetOutput()
 
-        else:
-            assert self.mesh_path.endswith('.stl'), "Mesh filename must be endswith \'stl\'."
+        elif self.mesh_path.endswith('.stl'):
             self.mesh_reader = vtk.vtkSTLReader()
             self.mesh_reader.SetFileName(self.mesh_path)
             self.mesh_reader.Update()
             self.polydata = self.mesh_reader.GetOutput()
+        elif self.mesh_path.endswith('.ply'):
+            self.mesh_reader = vtk.vtkPLYReader()
+            self.mesh_reader.SetFileName(self.mesh_path)
+            self.mesh_reader.Update()
+            self.polydata = self.mesh_reader.GetOutput()
+        else:
+            raise ValueError('The file format is not supported.')
 
         self.polyMapper = vtk.vtkPolyDataMapper()
         self.polyMapper.SetInputData(self.polydata)
@@ -347,7 +369,7 @@ class Camera_VTK:
         self.background_render = vtk.vtkRenderer()
         self.background_render.SetLayer(0)
         self.background_render.InteractiveOff()
-        setup_background_image(self.background_image, self.background_render)
+        # setup_background_image(self.background_image, self.background_render)
 
         self.renderer = vtk.vtkRenderer()
         self.renderer.SetLayer(1)
@@ -417,10 +439,6 @@ class Camera_VTK:
                 self.renderer.AddActor(sphere_actor)
 
         # generate a video renderer
-        self.video_render = vtk.vtkRenderer()
-        self.video_render.SetLayer(2)
-        self.video_render.InteractiveOff()
-
 
         self.renWin = vtk.vtkRenderWindow()
         self.renWin.SetNumberOfLayers(2)
@@ -441,8 +459,41 @@ class Camera_VTK:
         self.iren.SetInteractorStyle(self.style)
         self.iren.AddObserver('KeyPressEvent', self.key_press_call_back)
 
+        if self.video_path is not None:
+            self.video = cv2.VideoCapture(self.video_path)
+            ret,frame = self.video.read()
+            image_data = get_vtk_image_from_numpy(frame)
+
+            origin = image_data.GetOrigin()
+            spacing = image_data.GetSpacing()
+            extent = image_data.GetExtent()
+            camera = self.background_render.GetActiveCamera()
+            camera.ParallelProjectionOn()
+
+            xc = origin[0] + 0.5 * (extent[0] + extent[1]) * spacing[0]
+            yc = origin[1] + 0.5 * (extent[2] + extent[3]) * spacing[1]
+            # xd = (extent[1] - extent[0] + 1) * spacing[0]
+            yd = (extent[3] - extent[2] + 1) * spacing[1]
+            d = camera.GetDistance()
+            camera.SetParallelScale(0.5 * yd)
+            camera.SetFocalPoint(xc, yc, 0.0)
+            camera.SetPosition(xc, yc, d)
+
+            self.image_actor = vtk.vtkImageActor()
+            self.image_actor.SetInputData(image_data)
+            self.image_actor.SetOpacity(0.8)
+            self.background_render.AddActor(self.image_actor)
+            self.video_pause = True
+
+        # init video
+        if self.video is not None:
+            # register a callback function
+            self.timer_id = self.iren.CreateRepeatingTimer(int(1000 / self.video.get(cv2.CAP_PROP_FPS)))
+            self.iren.AddObserver('TimerEvent', self.update_frame)
         self.iren.Initialize()
         self.iren.Start()
+        self.video.release()
+
 
     def key_press_call_back(self, obj, en, ):
         key = self.iren.GetKeySym()
@@ -530,57 +581,7 @@ class Camera_VTK:
             self.renderer.AddActor(self.meshActor)
             self.renderer.Render()
         elif key == 't':
-            self.renderer.ResetCamera()
-            self.renderer.Render()
-            print('Generate Random Pose Guess via last record.')
-            data = read_json('/data/endoscope/simulation_data/10:11:42/registration.json')
-            look_at = data['look_at_position_for_openGL']
-            origin = data['cam_position_for_openGL']
-
-            look_at = np.array(look_at)
-            origin = np.array(origin)
-
-            look_at_direction = (look_at - origin) / np.linalg.norm(look_at - origin)
-
-            bbox = data['init_bbox']
-            bbox = np.array(bbox)
-            cam_projection_matrix = data['cam_projection_matrix']
-            cam_projection_matrix = np.array(cam_projection_matrix)
-            K = data['intrinsics']
-            K = np.array(K)
-            znear, zfar = determine_znear_zfar(bbox, cam_projection_matrix, K)
-
-            assert znear < 0 and zfar < 0, "znear and zfar should be negative"
-            assert znear > zfar, "znear should be greater than zfar"
-
-            bbox_center = np.array([(bbox[1] + bbox[0]) / 2, (bbox[3] + bbox[2]) / 2, (bbox[5] + bbox[4]) / 2])
-
-            z_distance_range = znear
-            random_position = z_distance_range * look_at_direction + origin
-            translation = random_position - bbox_center
-
-            # now we rotate the object
-            all_normals = data['scene_points_normals']
-            all_normals = np.array(all_normals)
-            main_direction = get_main_direction_of_normals(all_normals)
-
-            # rotate the object
-            rotation_matrix = get_rotation_matrix(main_direction, look_at_direction)
-
-            # generate homogeneous transformation matrix
-            homogeneous_transformation_matrix = np.zeros((4, 4))
-            # homogeneous_transformation_matrix[0:3, 0:3] = rotation_matrix
-            homogeneous_transformation_matrix[0:3, 3] = translation
-            homogeneous_transformation_matrix[3, 3] = 1
-            # homogeneous_transformation_matrix = np.linalg.inv(homogeneous_transformation_matrix)
-            # tfm = vtk.vtkMatrix4x4()
-            # for i in range(4):
-            #     for j in range(4):
-            #         tfm.SetElement(i, j, homogeneous_transformation_matrix[i, j])
-            self.camera.SetPosition(origin)
-            self.camera.SetFocalPoint(look_at)
-            self.iren.GetRenderWindow().Render()
-
+            self.video_pause = not self.video_pause
         elif key == 'q':
             self.iren.GetRenderWindow().Finalize()
             self.iren.TerminateApp()
@@ -600,8 +601,6 @@ class Camera_VTK:
                     actor.SetVisibility(1)
             self.iren.GetRenderWindow().Render()
 
-        elif key.lower() == 't':
-            self.parent.TerminateApp()
         elif key == 'Escape':
             sys.exit()
         elif key == 'Control_L':
@@ -627,13 +626,26 @@ class Camera_VTK:
         elif key == "d":
             self.camera.Roll(-self.delta)
             self.iren.GetRenderWindow().Render()
-        elif key == "w":
-            self.camera.Zoom(1.1)
-            self.iren.GetRenderWindow().Render()
-        elif key == "s":
-            self.camera.Zoom(0.9)
-            self.iren.GetRenderWindow().Render()
+        # elif key == "w":
+        #     self.camera.Zoom(1.1)
+        #     self.iren.GetRenderWindow().Render()
+        # elif key == "s":
+        #     self.camera.Zoom(0.9)
+        #     self.iren.GetRenderWindow().Render()
         return
+
+
+    def update_frame(self,obj,event):
+        if not self.video_pause:
+            ret,frame = self.video.read()
+            if ret:
+                image_data = get_vtk_image_from_numpy(frame)
+                self.image_actor.SetInputData(image_data)
+                self.iren.GetRenderWindow().Render()
+            else:
+                self.iren.DestroyTimer(self.timer_id)
+        else:
+            pass
 
 
 class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
@@ -762,3 +774,4 @@ class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
         self.contour_index.append(seg_index)
         render.AddActor(lineActor)
         render.Render()
+
