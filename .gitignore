@@ -1,2 +1,7 @@
 /PBD/
 /venv/
+/.idea/
+# add iml files to .gitignore
+*.iml
+# add .xml to .gitignore
+*.xml

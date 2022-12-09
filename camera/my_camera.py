@@ -1,4 +1,5 @@
 import numpy as np
+import vtk
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from vtk.util import numpy_support
 import os
@@ -267,7 +268,7 @@ class Camera_VTK:
             cv2.imwrite(os.path.join(all_path, 'registration.png'), arr)
             with open(os.path.join(all_path, 'registration.json'), 'w') as f:
                 json.dump(parameter_dict, f, indent=1)
-        self.axes.SetVisibility(True)
+        self.axes.SetVisibility(False)
         print('Image and Parameters has been saved.')
 
         # now we capture the depth map
@@ -296,8 +297,24 @@ class Camera_VTK:
         return
 
     def init_model(self):
+
+        if isinstance(self.mesh_path,list):
+            self.mesh_reader = vtk.vtkPLYReader()
+            self.polydata = list()
+            self.colors = list()
+            for each in self.mesh_path:
+                self.mesh_reader.SetFileName(each)
+                self.mesh_reader.Update()
+                # create a new polydata to avoid the problem of the same polydata
+                polydata = vtk.vtkPolyData()
+                polydata.DeepCopy(self.mesh_reader.GetOutput())
+                self.polydata.append(polydata)
+                # assign a random color to each mesh
+                color = np.random.randint(0, 255, size=(3,))
+                self.colors.append(color)
+
         # get the file extension name
-        if self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('vtu'):
+        elif self.mesh_path.endswith('.vtk') or self.mesh_path.endswith('vtu'):
             if self.read_tet:
                 if self.mesh_path.endswith('.vtk'):
                     self.mesh_reader = vtk.vtkUnstructuredGridReader()
@@ -330,53 +347,33 @@ class Camera_VTK:
         else:
             raise ValueError('The file format is not supported.')
 
-        self.polyMapper = vtk.vtkPolyDataMapper()
-        self.polyMapper.SetInputData(self.polydata)
-        # self.polyMapper.SetInputConnection(self.stl_reader.GetOutputPort())
-
-        """
-        set mapper
-
-        """
-        self.meshActor = vtk.vtkActor()
-        self.meshActor.SetMapper(self.polyMapper)
-
-        self.axes = vtk.vtkAxesActor()
-        self.axes.SetTotalLength(10000, 10000, 10000)
-
-        # planeSource = vtkPlaneSource()
-        # planeSource.SetCenter(0.0, -10, 0.0)
-        # planeSource.SetOrigin(-1000.0, -10, -1000.0)
-        # planeSource.SetPoint1(-1000.0, -10, 1000.0)
-        # planeSource.SetPoint2(1000.0, -10, -1000.0)
-        # planeSource.Update()
-        #
-        # plane = planeSource.GetOutput()
-        #
-        #
-        # # Create a mapper and actor
-        # mapper = vtkPolyDataMapper()
-        # mapper.SetInputData(plane)
-
-        colors = vtkNamedColors()
-
-        # Set the background color.
-        colors.SetColor('BkgColor', [26, 51, 77, 255])
-        # actor = vtkActor()
-        # actor.SetMapper(mapper)
-        # actor.GetProperty().SetColor(colors.GetColor3d('Banana'))
-        # actor.GetProperty().SetLighting(False)
         self.background_render = vtk.vtkRenderer()
         self.background_render.SetLayer(0)
         self.background_render.InteractiveOff()
-        # setup_background_image(self.background_image, self.background_render)
 
         self.renderer = vtk.vtkRenderer()
         self.renderer.SetLayer(1)
-        self.renderer.AddActor(self.meshActor)
+
+        if not isinstance(self.polydata,list):
+            self.polyMapper = vtk.vtkPolyDataMapper()
+            self.polyMapper.SetInputData(self.polydata)
+            self.meshActor = vtk.vtkActor()
+            self.meshActor.SetMapper(self.polyMapper)
+            self.renderer.AddActor(self.meshActor)
+        else:
+            for i in range(len(self.polydata)):
+                self.polyMapper = vtk.vtkPolyDataMapper()
+                self.polyMapper.SetInputData(self.polydata[i])
+                self.meshActor = vtk.vtkActor()
+                self.meshActor.SetMapper(self.polyMapper)
+                self.meshActor.GetProperty().SetColor(self.colors[i][0]/255,self.colors[i][1]/255,self.colors[i][2]/255)
+                self.renderer.AddActor(self.meshActor)
+
+        self.axes = vtk.vtkAxesActor()
+        self.axes.SetTotalLength(100, 100, 100)
         self.renderer.AddActor(self.axes)
-        # self.renderer.AddActor(actor)
         self.axes.SetVisibility(True)
+
         self.renderer.SetBackground(0, 0, 0)
         self.camera = vtk.vtkCamera()
         self.renderer.SetActiveCamera(self.camera)
@@ -451,13 +448,14 @@ class Camera_VTK:
         self.iren = vtk.vtkRenderWindowInteractor()
         self.iren.SetRenderWindow(self.renWin)
 
-        self.style = MyInteractor(self.polydata)
+        self.style = MyInteractorStyle(self.polydata)
         self.style.picker = vtk.vtkCellPicker()
         self.style.picker.AddPickList(self.meshActor)
         self.style.SetDefaultRenderer(self.renderer)
+        # disable the original key press event for 'w'
         self.style.AddObserver('RightButtonPressEvent', self.style.RightButtonPressEvent)
+        self.style.AddObserver('KeyPressEvent', self.key_press_call_back)
         self.iren.SetInteractorStyle(self.style)
-        self.iren.AddObserver('KeyPressEvent', self.key_press_call_back)
 
         if self.video_path is not None:
             self.video = cv2.VideoCapture(self.video_path)
@@ -497,6 +495,7 @@ class Camera_VTK:
 
     def key_press_call_back(self, obj, en, ):
         key = self.iren.GetKeySym()
+
         if key == 'space':
             if len(self.iren.GetInteractorStyle().scene_points) == 0:
                 print("This frame has been frozen,Notice That there is no initial points,we assume that this frame is "
@@ -515,11 +514,11 @@ class Camera_VTK:
                     f"initial points,{len(self.iren.GetInteractorStyle().contour)} contour points.\n")
                 print("Label More!")
                 return
-        elif key == '1':
+        elif key == 'n':
             self.iren.GetInteractorStyle().label_points = True
             self.iren.GetInteractorStyle().label_contour = False
             print("Start Labeling points.")
-        elif key == '2':
+        elif key == 'm':
             self.iren.GetInteractorStyle().label_points = False
             self.iren.GetInteractorStyle().label_contour = True
             print("Start Labeling contour.")
@@ -531,22 +530,26 @@ class Camera_VTK:
             self.iren.GetInteractorStyle().label_points = False
             self.iren.GetInteractorStyle().label_contour = False
             print("Exit Labeling mode.")
-        elif key == '8':
+        elif key == 'g':
             current_opacity = self.meshActor.GetProperty().GetOpacity()
             if current_opacity > 1 or current_opacity < 0:
                 return
             else:
                 print("Decrease Opacity")
-                self.meshActor.GetProperty().SetOpacity(current_opacity - 0.1)
+                # Decrease Opacity of all actors
+                for each_actor in self.renderer.GetActors():
+                    each_actor.GetProperty().SetOpacity(current_opacity - 0.1)
+                # self.meshActor.GetProperty().SetOpacity(current_opacity - 0.1)
                 self.iren.GetRenderWindow().Render()
 
-        elif key == '9':
+        elif key == 'h':
             current_opacity = self.meshActor.GetProperty().GetOpacity()
             if current_opacity > 1:
                 return
             else:
                 print("Increase Opacity")
-                self.meshActor.GetProperty().SetOpacity(current_opacity + 0.1)
+                for each_actor in self.renderer.GetActors():
+                    each_actor.GetProperty().SetOpacity(current_opacity + 0.1)
                 self.iren.GetRenderWindow().Render()
         # elif key == 's':
         #     print('Extracting Silhouette.')
@@ -587,7 +590,7 @@ class Camera_VTK:
             self.iren.TerminateApp()
             return
         elif key == 'o':
-            # toggle the visibility of the mesh
+            # toggle the visibility of the all actors
             if self.meshActor.GetVisibility() == 1:
                 print("Hide Mesh")
                 # disable the visibility of all actors
@@ -626,6 +629,13 @@ class Camera_VTK:
         elif key == "d":
             self.camera.Roll(-self.delta)
             self.iren.GetRenderWindow().Render()
+        elif key.isdigit():
+            if eval(key) < self.renderer.GetActors().GetNumberOfItems():
+                actor = self.renderer.GetActors().GetItemAsObject(eval(key))
+                actor.SetVisibility(not actor.GetVisibility())
+                self.iren.GetRenderWindow().Render()
+
+
         # elif key == "w":
         #     self.camera.Zoom(1.1)
         #     self.iren.GetRenderWindow().Render()
@@ -648,10 +658,9 @@ class Camera_VTK:
             pass
 
 
-class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
+class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
 
     def __init__(self, mesh_data, parent=None):
-
         self.collection_point = []
         self.PointCount = 0
         self.time_count = 0
@@ -664,7 +673,13 @@ class MyInteractor(vtk.vtkInteractorStyleTrackballCamera):
         self.label_points = False
         self.label_contour = False
         self.contour = []
-        self.contour_index = []
+        self.AddObserver('CharEvent', self.OnChar)
+        # disable the default key press event for '3'
+
+    def OnChar(self, obj, event):
+        if obj.GetInteractor().GetKeyCode() == "3":
+            return
+        super(MyInteractorStyle, obj).OnChar()
 
     def OnRightButtonUp(self):
         return

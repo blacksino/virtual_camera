@@ -9,6 +9,4 @@ meshio.write('/home/SENSETIME/xulixin2/图片/ct.node', vtk_file.points, file_fo
 
 cells = vtk_file.cells[0].data
 with open('/home/SENSETIME/xulixin2/图片/ct.face', 'w') as f:
-
-#write tetgen node
-meshio
+    pass

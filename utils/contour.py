@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 from skimage import morphology
 
 
+
 def extract_specific_color_region(img_path):
     image = cv2.imread(img_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
