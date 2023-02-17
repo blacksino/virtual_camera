@@ -6,13 +6,15 @@ from tqdm import tqdm
 
 
 if __name__ == '__main__':
-    fx = 9.9640e+02
-    fy = 9.9640e+02
-    w = 720
-    h = 576
+    fx = 1736
+    fy = 1736
+    cx = 941
+    cy = 601
 
-    cx = 375
-    cy = 240
+
+    w = 1920
+    h = 1080
+
 
     K = np.array([[fx, 0., cx],
                   [0., fy, cy],
@@ -29,32 +31,14 @@ if __name__ == '__main__':
     data_root_path = '/data/endoscope/simulation_data'
     # stl_poly_data = loadSTL(simple_stl_path)
     manual_align_vtk_path = '/home/SENSETIME/xulixin2/下载/SERV-CT-ALL/CT/008/Anatomy.vtk'
-    # mesh = meshio.read('/home/SENSETIME/xulixin2/下载/seg.ply')
-    #
-    # red = mesh.cell_data['red'][0]
-    # green = mesh.cell_data['green'][0]
-    # blue = mesh.cell_data['blue'][0]
-    #
-    # attr = np.stack([red, green, blue], axis=1)
-    #
-    # cells = mesh.cells[0].data
-    # cells = cells.tolist()
-    # # group cells by it's attribute
-    # grouped_cells = {}
-    # for i in tqdm(range(len(cells))):
-    #     key = tuple(attr[i])
-    #     if key not in grouped_cells:
-    #         grouped_cells[key] = []
-    #     grouped_cells[key].append(cells[i])
-    #
-    # for each_key, value in grouped_cells.items():
-    #     print(each_key)
-    #     new_mesh = meshio.Mesh(points=mesh.points, cells=[('triangle', np.array(value))])
-    #     meshio.write(f'/home/SENSETIME/xulixin2/下载/seg_{each_key}.ply', new_mesh, file_format='ply')
+
 
     mesh_list = glob(f'/home/SENSETIME/xulixin2/下载/seg_*')
-    Camera_VTK(w, h, K, mesh_path=mesh_list ,data_root_path=data_root_path,background_path=
-               None,video_path='/home/SENSETIME/xulixin2/下载/test.mp4',)
+    Camera_VTK(w, h, K, mesh_path="/home/SENSETIME/xulixin2/RJ_demo/mesh/right_lobe.vtk",
+               data_root_path=data_root_path,
+               background_path=None,
+               video_path=None,
+               read_tet=True)
 
 
 

@@ -3,6 +3,7 @@ import vtk
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from vtk.util import numpy_support
 import os
+from vtkmodules.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 # import vtkmodules.all as vtk
 import json
 from datetime import datetime
@@ -324,8 +325,9 @@ class Camera_VTK:
                 self.mesh_reader.Update()
                 self.filter = vtk.vtkDataSetSurfaceFilter()
                 output = self.mesh_reader.GetOutput()
-                # convert output to stl format.
-                self.filter.SetInputData(self.mesh_reader.GetOutput())
+                # cell_color = output.GetCellData().GetArray('MeshDomain')
+                # cell_color = vtk_to_numpy(cell_color)
+                self.filter.SetInputData(output)
                 self.filter.Update()
                 self.polydata = self.filter.GetOutput()
             else:
@@ -357,8 +359,21 @@ class Camera_VTK:
         if not isinstance(self.polydata,list):
             self.polyMapper = vtk.vtkPolyDataMapper()
             self.polyMapper.SetInputData(self.polydata)
+            # use "MeshDomain"  from cell data as the cell color
+            self.polyMapper.SetScalarModeToUseCellFieldData()
+            self.polyMapper.SelectColorArray("MeshDomain")
+            self.polyMapper.SetColorModeToMapScalars()
+            color_function = vtk.vtkColorTransferFunction()
+            color_function.AddRGBPoint(1, 1.0, 0.0, 0.0)
+            color_function.AddRGBPoint(2, 0.0, 1.0, 0.0)
+            color_function.AddRGBPoint(4, 0.0, 0.0, 1.0)
+            self.polyMapper.SetLookupTable(color_function)
+
+
             self.meshActor = vtk.vtkActor()
             self.meshActor.SetMapper(self.polyMapper)
+            self.meshActor.GetProperty().SetOpacity(1.0)
+            # self.meshActor.GetProperty().SetBlend(False)
             self.renderer.AddActor(self.meshActor)
         else:
             for i in range(len(self.polydata)):
@@ -405,16 +420,16 @@ class Camera_VTK:
         #                      [0.415023753 ,   0.741718336,    0.52688632,    199.1487109],
         #                      [0,    0 ,   0,    1]])
 
-        pose_mat = np.array([[-0.68943055, -0.71598163, 0.10979899, -212.26318759],
-                             [0.52100206, -0.38484477, 0.76187358, -21.55271046],
-                             [-0.50323192, 0.58246443, 0.63835165, 17.82693022],
-                             [0., 0., 0., 1.]])
-        pose_mat = np.linalg.inv(pose_mat)
-        matrix = vtk.vtkMatrix4x4()
-        for i in range(4):
-            for j in range(4):
-                matrix.SetElement(i, j, pose_mat[i, j])
-        cv2gl.set_camera_pose(self.camera,matrix)
+        # pose_mat = np.array([[-0.68943055, -0.71598163, 0.10979899, -212.26318759],
+        #                      [0.52100206, -0.38484477, 0.76187358, -21.55271046],
+        #                      [-0.50323192, 0.58246443, 0.63835165, 17.82693022],
+        #                      [0., 0., 0., 1.]])
+        # pose_mat = np.linalg.inv(pose_mat)
+        # matrix = vtk.vtkMatrix4x4()
+        # for i in range(4):
+        #     for j in range(4):
+        #         matrix.SetElement(i, j, pose_mat[i, j])
+        # cv2gl.set_camera_pose(self.camera,matrix)
 
 
         if self.marker_path != None:
@@ -440,8 +455,8 @@ class Camera_VTK:
         self.renWin = vtk.vtkRenderWindow()
         self.renWin.SetNumberOfLayers(2)
         self.renWin.SetSize(self.w, self.h)
-        if self.h == 1080 and self.w == 1920:
-            self.renWin.SetFullScreen(True)
+        # if self.h == 1080 and self.w == 1920:
+        #     self.renWin.SetFullScreen(True)
 
         self.renWin.AddRenderer(self.renderer)
         self.renWin.AddRenderer(self.background_render)
@@ -479,18 +494,20 @@ class Camera_VTK:
 
             self.image_actor = vtk.vtkImageActor()
             self.image_actor.SetInputData(image_data)
-            self.image_actor.SetOpacity(0.8)
+            self.image_actor.SetOpacity(0.4)
             self.background_render.AddActor(self.image_actor)
             self.video_pause = True
 
+        if self.background_image is not None:
+           setup_background_image(self.background_image,self.background_render,)
+
         # init video
-        if self.video is not None:
+        if self.video_path is not None:
             # register a callback function
             self.timer_id = self.iren.CreateRepeatingTimer(int(1000 / self.video.get(cv2.CAP_PROP_FPS)))
             self.iren.AddObserver('TimerEvent', self.update_frame)
         self.iren.Initialize()
         self.iren.Start()
-        self.video.release()
 
 
     def key_press_call_back(self, obj, en, ):
@@ -551,24 +568,24 @@ class Camera_VTK:
                 for each_actor in self.renderer.GetActors():
                     each_actor.GetProperty().SetOpacity(current_opacity + 0.1)
                 self.iren.GetRenderWindow().Render()
-        # elif key == 's':
-        #     print('Extracting Silhouette.')
-        #     self.silhouette = vtk.vtkPolyDataSilhouette()
-        #     self.silhouette.SetInputData(self.iren.GetInteractorStyle().mesh)
-        #     self.silhouette.SetCamera(self.renderer.GetActiveCamera())
-        #     # self.silhouette.SetEnableFeatureAngle(1)
-        #     self.silhouette.SetFeatureAngle(0)
-        #     self.silhouette.SetEnableFeatureAngle(0)
-        #     self.silhouette.BorderEdgesOn()
-        #     self.silhouette.GetBorderEdges()
-        #     self.sil_mapper = vtk.vtkPolyDataMapper()
-        #     self.sil_mapper.SetInputConnection(self.silhouette.GetOutputPort())
-        #     self.silhouette.Update()
-        #     self.sil_actor = vtk.vtkActor()
-        #     self.sil_actor.SetMapper(self.sil_mapper)
-        #     self.sil_actor.GetProperty().SetColor(0.1, 0.4, 1)
-        #     self.sil_actor.GetProperty().SetLineWidth(3)
-        #     self.renderer.AddActor(self.sil_actor)
+        elif key == 'v':
+            print('Extracting Silhouette.')
+            self.silhouette = vtk.vtkPolyDataSilhouette()
+            self.silhouette.SetInputData(self.iren.GetInteractorStyle().mesh)
+            self.silhouette.SetCamera(self.renderer.GetActiveCamera())
+            # self.silhouette.SetEnableFeatureAngle(1)
+            self.silhouette.SetFeatureAngle(0)
+            self.silhouette.SetEnableFeatureAngle(0)
+            self.silhouette.BorderEdgesOn()
+            self.silhouette.GetBorderEdges()
+            self.sil_mapper = vtk.vtkPolyDataMapper()
+            self.sil_mapper.SetInputConnection(self.silhouette.GetOutputPort())
+            self.silhouette.Update()
+            self.sil_actor = vtk.vtkActor()
+            self.sil_actor.SetMapper(self.sil_mapper)
+            self.sil_actor.GetProperty().SetColor(0.1, 0.4, 1)
+            self.sil_actor.GetProperty().SetLineWidth(3)
+            self.renderer.AddActor(self.sil_actor)
 
 
         elif key == 'r':
@@ -673,6 +690,7 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.label_points = False
         self.label_contour = False
         self.contour = []
+        self.contour_index = []
         self.AddObserver('CharEvent', self.OnChar)
         # disable the default key press event for '3'
 
