@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
 
     mesh_list = glob(f'/home/SENSETIME/xulixin2/下载/seg_*')
-    Camera_VTK(w, h, K, mesh_path="/home/SENSETIME/xulixin2/RJ_demo/mesh/right_lobe.vtk",
+    Camera_VTK(w, h, K, mesh_path="/home/SENSETIME/xulixin2/RJ_demo/mesh/deformed.vtk",
                data_root_path=data_root_path,
                background_path=None,
                video_path=None,

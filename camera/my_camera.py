@@ -366,7 +366,16 @@ class Camera_VTK:
             color_function = vtk.vtkColorTransferFunction()
             color_function.AddRGBPoint(1, 1.0, 0.0, 0.0)
             color_function.AddRGBPoint(2, 0.0, 1.0, 0.0)
-            color_function.AddRGBPoint(4, 0.0, 0.0, 1.0)
+            color_function.AddRGBPoint(3, 0.0, 0.0, 1.0)
+            color_function.AddRGBPoint(4, 1.0, 1.0, 0.0)
+            color_function.AddRGBPoint(5, 1.0, 0.0, 1.0)
+            color_function.AddRGBPoint(6, 0.0, 1.0, 1.0)
+            color_function.AddRGBPoint(7, 0.5, 0.5, 0.5)
+            color_function.AddRGBPoint(8, 0.5, 0.5, 0.0)
+            color_function.AddRGBPoint(9, 0.5, 0.0, 0.5)
+            color_function.AddRGBPoint(10, 0.0, 0.5, 0.5)
+            color_function.AddRGBPoint(11, 0.5, 0.0, 0.0)
+
             self.polyMapper.SetLookupTable(color_function)
 
 
@@ -646,11 +655,23 @@ class Camera_VTK:
         elif key == "d":
             self.camera.Roll(-self.delta)
             self.iren.GetRenderWindow().Render()
+
+        elif key == "b":
+            # toggle the color of mappping
+            if self.meshActor.GetMapper().GetScalarVisibility() == 1:
+                print("Hide Color")
+                self.meshActor.GetMapper().SetScalarVisibility(0)
+            else:
+                print("Show Color")
+                self.meshActor.GetMapper().SetScalarVisibility(1)
+
+
         elif key.isdigit():
             if eval(key) < self.renderer.GetActors().GetNumberOfItems():
                 actor = self.renderer.GetActors().GetItemAsObject(eval(key))
                 actor.SetVisibility(not actor.GetVisibility())
                 self.iren.GetRenderWindow().Render()
+
 
 
         # elif key == "w":

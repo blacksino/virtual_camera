@@ -3,7 +3,7 @@ import meshio
 import numpy as np
 from tqdm import tqdm
 
-vtk_mesh = meshio.vtk.read('/home/SENSETIME/xulixin2/RJ_demo/mesh/fine_liver.vtk')
+vtk_mesh = meshio.vtk.read('/home/SENSETIME/xulixin2/RJ_demo/mesh/all.vtk')
 
 points = vtk_mesh.points
 cells = vtk_mesh.cells[0].data
@@ -13,7 +13,7 @@ label_value = set(label_data)
 color_data = list(range(len(label_value)))
 color_dict = dict(zip(label_value, color_data))
 
-with open('/home/SENSETIME/xulixin2/RJ_demo/mesh/fine_liver.face', 'r') as f:
+with open('/home/SENSETIME/xulixin2/RJ_demo/mesh/all.face', 'r') as f:
     lines = f.readlines()
     surface_faces = []
     for line in lines[1:]:
@@ -37,6 +37,9 @@ for i, cell in enumerate(cells):
 face_label = []
 for each_face in tqdm(surface_faces, total=len(surface_faces)):
     face = tuple(sorted(each_face))
+    if face not in face_dict.keys():
+        print(f'face:{face} not in face_dict.keys()')
+        continue
     tetra_index = face_dict[face]
     label = label_data[tetra_index]
     face_label.append(color_dict[min(label)])
