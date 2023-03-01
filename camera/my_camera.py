@@ -472,6 +472,7 @@ class Camera_VTK:
         self.style = MyInteractorStyle(self.polydata)
         self.style.picker = vtk.vtkCellPicker()
         self.style.picker.AddPickList(self.meshActor)
+        self.style.picker.SetPickFromList(True)
         self.style.SetDefaultRenderer(self.renderer)
         # disable the original key press event for 'w'
         self.style.AddObserver('RightButtonPressEvent', self.style.RightButtonPressEvent)
@@ -724,13 +725,11 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
             clickPos = self.GetInteractor().GetEventPosition()
             print("Picking pixel: ", clickPos)
 
-            # Pick from this location
-            picker = self.picker
-            picker.Pick(clickPos[0], clickPos[1], 0, self.GetDefaultRenderer())
-            cell_id = picker.GetCellId()
+            self.picker.Pick(clickPos[0], clickPos[1], 0, self.GetDefaultRenderer())
+            cell_id = self.picker.GetCellId()
             if cell_id != -1:
-                point_position = picker.GetPickPosition()
-                normal = picker.GetPickNormal()
+                point_position = self.picker.GetPickPosition()
+                normal = self.picker.GetPickNormal()
                 print("Pick position is: ", point_position)
                 print("Picked cell is: ", cell_id)
                 print("cell related vertex id :", self.mesh.GetCell(cell_id).GetPointId(0),
@@ -741,7 +740,7 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
                     self.scene_points.append(point_position)
                     self.scene_points_normals.append(normal)
                 elif self.label_contour:
-                    self.current_point_id = picker.GetPointId()
+                    self.current_point_id = self.picker.GetPointId()
                     if self.pred_point_id != -1 and self.label_contour:
                         self.draw_lines()
                     self.pred_point_id = self.current_point_id
