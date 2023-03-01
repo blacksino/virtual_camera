@@ -29,6 +29,7 @@ from utils import cv2gl
 import json
 import sys
 
+
 def loadSTL(filenameSTL):
     readerSTL = vtk.vtkSTLReader()
     readerSTL.SetFileName(filenameSTL)
@@ -101,16 +102,14 @@ def setup_background_image(image_data, background_renderer):
     camera.SetFocalPoint(xc, yc, 0.0)
     camera.SetPosition(xc, yc, d)
 
-def set_background_video(video_path, background_renderer):
 
+def set_background_video(video_path, background_renderer):
     # play video via vtkImageReader2
     reader = vtk.vtkImageReader2()
     reader.SetFileName(video_path)
     reader.Update()
     image_data = reader.GetOutput()
     setup_background_image(image_data, background_renderer)
-
-
 
 
 def get_vtk_image_from_numpy(image_in):
@@ -151,7 +150,7 @@ class Camera_VTK:
     Example class showing how to project a 3D world coordinate onto a 2D image plane using VTK
     """
 
-    def __init__(self, w, h, K, mesh_path, data_root_path, background_path=None, read_tet=False,marker_path=None,
+    def __init__(self, w, h, K, mesh_path, data_root_path, background_path=None, read_tet=False, marker_path=None,
                  video_path=None):
         self.w = w
         self.h = h
@@ -299,7 +298,7 @@ class Camera_VTK:
 
     def init_model(self):
 
-        if isinstance(self.mesh_path,list):
+        if isinstance(self.mesh_path, list):
             self.mesh_reader = vtk.vtkPLYReader()
             self.polydata = list()
             self.colors = list()
@@ -356,7 +355,7 @@ class Camera_VTK:
         self.renderer = vtk.vtkRenderer()
         self.renderer.SetLayer(1)
 
-        if not isinstance(self.polydata,list):
+        if not isinstance(self.polydata, list):
             self.polyMapper = vtk.vtkPolyDataMapper()
             self.polyMapper.SetInputData(self.polydata)
             # use "MeshDomain"  from cell data as the cell color
@@ -378,7 +377,6 @@ class Camera_VTK:
 
             self.polyMapper.SetLookupTable(color_function)
 
-
             self.meshActor = vtk.vtkActor()
             self.meshActor.SetMapper(self.polyMapper)
             self.meshActor.GetProperty().SetOpacity(1.0)
@@ -390,7 +388,8 @@ class Camera_VTK:
                 self.polyMapper.SetInputData(self.polydata[i])
                 self.meshActor = vtk.vtkActor()
                 self.meshActor.SetMapper(self.polyMapper)
-                self.meshActor.GetProperty().SetColor(self.colors[i][0]/255,self.colors[i][1]/255,self.colors[i][2]/255)
+                self.meshActor.GetProperty().SetColor(self.colors[i][0] / 255, self.colors[i][1] / 255,
+                                                      self.colors[i][2] / 255)
                 self.renderer.AddActor(self.meshActor)
 
         self.axes = vtk.vtkAxesActor()
@@ -423,7 +422,6 @@ class Camera_VTK:
 
         self.renderer.SetActiveCamera(self.camera)
 
-
         # pose_mat = np.array([[-0.742289232,	-0.058816695,	0.667493291	,-180.1266161],
         #                      [0.526081725 ,- 0.668127612,    0.526159208 ,- 37.14742266],
         #                      [0.415023753 ,   0.741718336,    0.52688632,    199.1487109],
@@ -439,7 +437,6 @@ class Camera_VTK:
         #     for j in range(4):
         #         matrix.SetElement(i, j, pose_mat[i, j])
         # cv2gl.set_camera_pose(self.camera,matrix)
-
 
         if self.marker_path != None:
             # read the marker json
@@ -478,12 +475,14 @@ class Camera_VTK:
         self.style.SetDefaultRenderer(self.renderer)
         # disable the original key press event for 'w'
         self.style.AddObserver('RightButtonPressEvent', self.style.RightButtonPressEvent)
+        self.style.AddObserver('RightButtonReleaseEvent', self.style.RightButtonReleaseEvent)
         self.style.AddObserver('KeyPressEvent', self.key_press_call_back)
+        self.style.AddObserver('MouseMoveEvent', self.style.MoveEvent)
         self.iren.SetInteractorStyle(self.style)
 
         if self.video_path is not None:
             self.video = cv2.VideoCapture(self.video_path)
-            ret,frame = self.video.read()
+            ret, frame = self.video.read()
             image_data = get_vtk_image_from_numpy(frame)
 
             origin = image_data.GetOrigin()
@@ -508,7 +507,7 @@ class Camera_VTK:
             self.video_pause = True
 
         if self.background_image is not None:
-           setup_background_image(self.background_image,self.background_render,)
+            setup_background_image(self.background_image, self.background_render, )
 
         # init video
         if self.video_path is not None:
@@ -517,7 +516,6 @@ class Camera_VTK:
             self.iren.AddObserver('TimerEvent', self.update_frame)
         self.iren.Initialize()
         self.iren.Start()
-
 
     def key_press_call_back(self, obj, en, ):
         key = self.iren.GetKeySym()
@@ -672,8 +670,6 @@ class Camera_VTK:
                 actor.SetVisibility(not actor.GetVisibility())
                 self.iren.GetRenderWindow().Render()
 
-
-
         # elif key == "w":
         #     self.camera.Zoom(1.1)
         #     self.iren.GetRenderWindow().Render()
@@ -682,10 +678,9 @@ class Camera_VTK:
         #     self.iren.GetRenderWindow().Render()
         return
 
-
-    def update_frame(self,obj,event):
+    def update_frame(self, obj, event):
         if not self.video_pause:
-            ret,frame = self.video.read()
+            ret, frame = self.video.read()
             if ret:
                 image_data = get_vtk_image_from_numpy(frame)
                 self.image_actor.SetInputData(image_data)
@@ -713,6 +708,7 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.contour = []
         self.contour_index = []
         self.AddObserver('CharEvent', self.OnChar)
+        self.right_button_down = False
         # disable the default key press event for '3'
 
     def OnChar(self, obj, event):
@@ -720,12 +716,58 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
             return
         super(MyInteractorStyle, obj).OnChar()
 
-    def OnRightButtonUp(self):
-        return
-
-    def RightButtonPressEvent(self, obj, en):
+    def MoveEvent(self, obj, event):
+        self.OnMouseMove()
         if not self.label_contour and not self.label_points:
             return
+        if self.right_button_down:
+            clickPos = self.GetInteractor().GetEventPosition()
+            print("Picking pixel: ", clickPos)
+
+            # Pick from this location
+            picker = self.picker
+            picker.Pick(clickPos[0], clickPos[1], 0, self.GetDefaultRenderer())
+            cell_id = picker.GetCellId()
+            if cell_id != -1:
+                point_position = picker.GetPickPosition()
+                normal = picker.GetPickNormal()
+                print("Pick position is: ", point_position)
+                print("Picked cell is: ", cell_id)
+                print("cell related vertex id :", self.mesh.GetCell(cell_id).GetPointId(0),
+                      self.mesh.GetCell(cell_id).GetPointId(1), self.mesh.GetCell(cell_id).GetPointId(2))
+
+                if self.label_points:
+                    self.pixel_points.append(clickPos)
+                    self.scene_points.append(point_position)
+                    self.scene_points_normals.append(normal)
+                elif self.label_contour:
+                    self.current_point_id = picker.GetPointId()
+                    if self.pred_point_id != -1 and self.label_contour:
+                        self.draw_lines()
+                    self.pred_point_id = self.current_point_id
+
+                # Create a sphere
+                sphereSource = vtk.vtkSphereSource()
+                sphereSource.SetCenter(point_position)
+                sphereSource.SetRadius(0.5)
+
+                # Create a mapper and actor
+                mapper = vtk.vtkPolyDataMapper()
+                mapper.SetInputConnection(sphereSource.GetOutputPort())
+
+                actor = vtk.vtkActor()
+                actor.SetMapper(mapper)
+                if self.label_points:
+                    actor.GetProperty().SetColor(1.0, 0.0, 0.0)
+                elif self.label_contour:
+                    actor.GetProperty().SetColor(0.0, 0.0, 1.0)
+                self.GetDefaultRenderer().AddActor(actor)
+                self.GetInteractor().GetRenderWindow().Render()
+
+    def RightButtonPressEvent(self, obj, event):
+        if not self.label_contour and not self.label_points:
+            return
+        self.right_button_down = True
         clickPos = self.GetInteractor().GetEventPosition()
         print("Picking pixel: ", clickPos)
 
@@ -734,15 +776,8 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         picker.Pick(clickPos[0], clickPos[1], 0, self.GetDefaultRenderer())
         cell_id = picker.GetCellId()
         if cell_id != -1:
-            # coords = vtk.vtkCoordinate()
-            # coords.SetCoordinateSystemToDisplay()
-            # coords.SetValue(clickPos[0],clickPos[1],0)
-            # worldcoords = coords.GetComputedWorldValue(self.GetInteractor().GetRenderWindow().GetRenderers().GetFirstRenderer());
-            # If CellId = -1, nothing was picked
             point_position = picker.GetPickPosition()
-            # get normal vector of the picked point
             normal = picker.GetPickNormal()
-
             print("Pick position is: ", point_position)
             print("Picked cell is: ", cell_id)
             print("cell related vertex id :", self.mesh.GetCell(cell_id).GetPointId(0),
@@ -761,8 +796,7 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
             # Create a sphere
             sphereSource = vtk.vtkSphereSource()
             sphereSource.SetCenter(point_position)
-            # sphereSource.SetRadius(0.2)
-            sphereSource.SetRadius(1)
+            sphereSource.SetRadius(0.5)
 
             # Create a mapper and actor
             mapper = vtk.vtkPolyDataMapper()
@@ -775,10 +809,15 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
             elif self.label_contour:
                 actor.GetProperty().SetColor(0.0, 0.0, 1.0)
             self.GetDefaultRenderer().AddActor(actor)
-
-        # Forward events
-        self.OnRightButtonDown()
+            self.GetInteractor().GetRenderWindow().Render()
+        print(f"right button status: {self.right_button_down}")
         return
+
+    def RightButtonReleaseEvent(self, obj, event):
+        if not self.label_contour and not self.label_points:
+            return
+        self.right_button_down = False
+        print(f"right button status: {self.right_button_down}")
 
     def get_points(self):
         return self.pixel_points, self.scene_points
@@ -828,4 +867,3 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.contour_index.append(seg_index)
         render.AddActor(lineActor)
         render.Render()
-
