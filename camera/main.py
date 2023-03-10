@@ -4,17 +4,14 @@ import meshio
 import numpy as np
 from tqdm import tqdm
 
-
 if __name__ == '__main__':
     fx = 1736
     fy = 1736
     cx = 941
     cy = 601
 
-
     w = 1920
     h = 1080
-
 
     K = np.array([[fx, 0., cx],
                   [0., fy, cy],
@@ -32,14 +29,9 @@ if __name__ == '__main__':
     # stl_poly_data = loadSTL(simple_stl_path)
     manual_align_vtk_path = '/home/SENSETIME/xulixin2/下载/SERV-CT-ALL/CT/008/Anatomy.vtk'
 
-
     mesh_list = glob(f'/home/SENSETIME/xulixin2/下载/seg_*')
-    Camera_VTK(w, h, K, mesh_path="/home/SENSETIME/xulixin2/RJ_demo/mesh/deformed.vtk",
+    Camera_VTK(w, h, K, mesh_path="/home/SENSETIME/xulixin2/RJ_demo/mesh/deformed_2/deformed_2.vtk",
                data_root_path=data_root_path,
-               background_path=None,
+               background_path="/home/SENSETIME/xulixin2/RJ_demo/images/label.png",
                video_path=None,
                read_tet=True)
-
-
-
-

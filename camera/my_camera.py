@@ -230,22 +230,18 @@ class Camera_VTK:
         K[1][2] = (1 + intrinsics[1][2]) * self.h / 2
 
         parameter_dict = dict()
-        if type == 'target':
-            parameter_dict['extrinsics'] = extrinsics.tolist()
-            parameter_dict['intrinsics'] = K.tolist()
-        else:
-            parameter_dict['extrinsics'] = extrinsics.tolist()
-            parameter_dict['intrinsics'] = K.tolist()
-            parameter_dict["cam_position_for_openGL"] = cam.GetPosition()
-            parameter_dict["look_at_position_for_openGL"] = cam.GetFocalPoint()
-            parameter_dict["view_up_for_openGL"] = cam.GetViewUp()
-            parameter_dict['cam_projection_matrix'] = vtkmatrix_to_numpy(
-                cam.GetProjectionTransformMatrix(1, cam.GetClippingRange()[0], cam.GetClippingRange()[1])).tolist()
-            parameter_dict['init_bbox'] = self.polydata.GetBounds()
-            parameter_dict['scene_points'] = scene_points
-            parameter_dict['scene_points_normals'] = scene_points_normals
-            parameter_dict['contour'] = self.iren.GetInteractorStyle().contour
-            parameter_dict['contour_index'] = self.iren.GetInteractorStyle().contour_index
+        parameter_dict['extrinsics'] = extrinsics.tolist()
+        parameter_dict['intrinsics'] = K.tolist()
+        parameter_dict["cam_position_for_openGL"] = cam.GetPosition()
+        parameter_dict["look_at_position_for_openGL"] = cam.GetFocalPoint()
+        parameter_dict["view_up_for_openGL"] = cam.GetViewUp()
+        parameter_dict['cam_projection_matrix'] = vtkmatrix_to_numpy(
+            cam.GetProjectionTransformMatrix(1, cam.GetClippingRange()[0], cam.GetClippingRange()[1])).tolist()
+        parameter_dict['init_bbox'] = self.polydata.GetBounds()
+        parameter_dict['scene_points'] = scene_points
+        parameter_dict['scene_points_normals'] = scene_points_normals
+        parameter_dict['picked_cell_id'] = list(set(self.iren.GetInteractorStyle().picked_cell))
+        parameter_dict['picked_nearest_vertex'] = list(set(self.iren.GetInteractorStyle().picked_nearest_vertex))
         self.axes.SetVisibility(False)
         winToIm = vtk.vtkWindowToImageFilter()
         winToIm.SetInput(self.renWin)
@@ -323,6 +319,8 @@ class Camera_VTK:
                 self.mesh_reader.SetFileName(self.mesh_path)
                 self.mesh_reader.Update()
                 self.filter = vtk.vtkDataSetSurfaceFilter()
+                self.filter.PassThroughPointIdsOn()
+                self.filter.PassThroughCellIdsOn()
                 output = self.mesh_reader.GetOutput()
                 # cell_color = output.GetCellData().GetArray('MeshDomain')
                 # cell_color = vtk_to_numpy(cell_color)
@@ -422,10 +420,17 @@ class Camera_VTK:
 
         self.renderer.SetActiveCamera(self.camera)
 
-        # pose_mat = np.array([[-0.742289232,	-0.058816695,	0.667493291	,-180.1266161],
-        #                      [0.526081725 ,- 0.668127612,    0.526159208 ,- 37.14742266],
-        #                      [0.415023753 ,   0.741718336,    0.52688632,    199.1487109],
-        #                      [0,    0 ,   0,    1]])
+        pose_mat = np.array([[-0.5570556827990565, 0.4980484915829195, 0.6645574966045117, 162.0042924955718],
+                             [0.032395703122972054, 0.8126363245569173, -0.5818700219377113, -126.54307975641187],
+                             [-0.829843048220834, -0.3026051950026686, -0.4688183137175337, -97.0321786090034],
+                             [0.0, 0.0, 0.0, 1.0]])
+        # pose_mat = np.linalg.inv(pose_mat)
+        matrix = vtk.vtkMatrix4x4()
+        for i in range(4):
+            for j in range(4):
+                matrix.SetElement(i, j, pose_mat[i, j])
+        cv2gl.set_camera_pose(self.camera, matrix,opencv_style=False)
+
 
         # pose_mat = np.array([[-0.68943055, -0.71598163, 0.10979899, -212.26318759],
         #                      [0.52100206, -0.38484477, 0.76187358, -21.55271046],
@@ -702,6 +707,8 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.pixel_points = []
         self.scene_points = []
         self.scene_points_normals = []
+        self.picked_cell = []
+        self.picked_nearest_vertex = []
         self.pred_point_id = -1
         self.current_point_id = -1
         self.label_points = False
@@ -710,6 +717,8 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         self.contour_index = []
         self.AddObserver('CharEvent', self.OnChar)
         self.right_button_down = False
+        self.mesh.GetCellData().SetScalars(self.mesh.GetCellData().GetArray("MeshDomain"))
+        self.mapping = vtk_to_numpy(self.mesh.GetPointData().GetArray("vtkOriginalPointIds"))
         # disable the default key press event for '3'
 
     def OnChar(self, obj, event):
@@ -735,15 +744,24 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
                 print("cell related vertex id :", self.mesh.GetCell(cell_id).GetPointId(0),
                       self.mesh.GetCell(cell_id).GetPointId(1), self.mesh.GetCell(cell_id).GetPointId(2))
 
-                if self.label_points:
-                    self.pixel_points.append(clickPos)
-                    self.scene_points.append(point_position)
-                    self.scene_points_normals.append(normal)
-                elif self.label_contour:
-                    self.current_point_id = self.picker.GetPointId()
-                    if self.pred_point_id != -1 and self.label_contour:
-                        self.draw_lines()
-                    self.pred_point_id = self.current_point_id
+                self.pixel_points.append(clickPos)
+                self.scene_points.append(point_position)
+                self.scene_points_normals.append(normal)
+                self.picked_cell.append(cell_id)
+                # find the nearest vertex
+                min_distance = 1000000
+                cell_ids = self.mesh.GetCell(cell_id).GetPointIds()
+                for i in range(3):
+                    vertex_id = cell_ids.GetId(i)
+                    vertex = self.mesh.GetPoint(vertex_id)
+                    distance = np.linalg.norm(np.array(vertex) - np.array(point_position))
+                    if distance < min_distance:
+                        min_distance = distance
+                        nearest_vertex = vertex_id
+
+                nearest_vertex = self.mapping[nearest_vertex]
+                nearest_vertex = int(nearest_vertex)
+                self.picked_nearest_vertex.append(nearest_vertex)
 
                 # Create a sphere
                 sphereSource = vtk.vtkSphereSource()
@@ -756,10 +774,15 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
 
                 actor = vtk.vtkActor()
                 actor.SetMapper(mapper)
-                if self.label_points:
-                    actor.GetProperty().SetColor(1.0, 0.0, 0.0)
-                elif self.label_contour:
-                    actor.GetProperty().SetColor(0.0, 0.0, 1.0)
+                actor.GetProperty().SetColor(1.0, 0.0, 0.0)
+
+                # highlight picked cell
+                # self.mesh.GetCellData().GetScalars().SetTuple1(cell_id, 10)
+                # self.mesh.GetCellData().Modified()
+                # highlight picked vertex
+                # self.mesh.GetPointData().GetScalars().SetTuple1(nearest_vertex, 10)
+                # self.mesh.GetPointData().Modified()
+
                 self.GetDefaultRenderer().AddActor(actor)
                 self.GetInteractor().GetRenderWindow().Render()
 
